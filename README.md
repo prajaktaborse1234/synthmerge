@@ -8,8 +8,6 @@
 
 ## 🌟 Core Philosophy
 
-synthmerge is built on four core principles:
-
 1. **Separation of concerns**  
    Pure AI inference layer that doesn't duplicate Git functionality
 
@@ -20,7 +18,7 @@ synthmerge is built on four core principles:
    Works with *any* editor (VS Code, Emacs, Vim, etc.) - no new GUI app required
 
 4. **Model flexibility**  
-   Breaks the Patchpal fine-tuning requirement, allowing any instruct model to be used
+   Removes the Patchpal fine-tuning requirement, allowing any instruct model to be used
 
 5. **Parallel model inference with deduplication**  
    Queries an unlimited number of models in parallel and deduplicates their answers when they agree
@@ -63,7 +61,7 @@ synthmerge is built on four core principles:
    - Generates precise AI prompt
 
 3. **AI resolves conflict**  
-   - Sends context + patch to configured endpoint
+   - Sends code + patch to configured endpoint
    - Receives resolved code
 
 4. **Git gets updated**  
