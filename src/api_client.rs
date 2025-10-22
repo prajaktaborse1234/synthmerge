@@ -147,14 +147,10 @@ impl ApiClient {
             reqwest::header::CONTENT_TYPE,
             reqwest::header::HeaderValue::from_static("application/json"),
         );
-        let payload = serde_json::json!(
-           {"jsonrpc": "2.0",
-        "method": "inference",
-            "params" : {
-        "patch" : request.patch,
-        "code" : request.code
-            }});
-
+        let payload = serde_json::json!({"jsonrpc": "2.0",
+					 "method": "inference",
+					 "params" : {"patch" : request.patch,
+						     "code" : request.code}});
         let response = self
             .client
             .post(url)
