@@ -50,18 +50,23 @@ impl ConflictResolver {
                 let patch = patch.clone();
                 let code = code.clone();
                 let client = ApiClient::new(endpoint.clone(), self.verbose);
-                let handle =
-                    tokio::spawn(
-                        async move { client.query(&prompt, &message, &patch, &code).await },
-                    );
+                let handle = tokio::spawn(async move {
+                    let start = std::time::Instant::now();
+                    let result = client.query(&prompt, &message, &patch, &code).await;
+                    let duration = start.elapsed().as_secs();
+                    (result, duration)
+                });
                 handles.push(handle);
             }
 
             // Collect results
             let mut results = Vec::new();
-            for handle in handles {
+            for (index, handle) in handles.into_iter().enumerate() {
                 match handle.await {
-                    Ok(result) => results.push(result),
+                    Ok((result, duration)) => {
+                        println!(" - {} completed in {} seconds", endpoints[index].name, duration);
+                        results.push(result);
+                    }
                     Err(e) => return Err(anyhow::anyhow!("Task failed: {}", e)),
                 }
             }
