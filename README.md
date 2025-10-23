@@ -113,7 +113,7 @@ git cherry-pick -x <commit>
 synthmerge
 
 # Review in your editor (no GUI needed!)
-git diff
+git diff --name-only --diff-filter=U
 ```
 
 ---

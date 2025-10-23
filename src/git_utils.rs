@@ -47,25 +47,22 @@ impl GitUtils {
 
         // Find all files that might contain conflicts
         let output = Command::new("git")
-            .args(["status", "--porcelain"])
+            .args(["diff", "--name-only", "--diff-filter=U"])
             .output()
-            .context("Failed to execute git status")?;
+            .context("Failed to execute git diff")?;
 
         if !output.status.success() {
             return Err(anyhow::anyhow!(
-                "Git status failed: {}",
+                "Git diff failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
 
-        let status_output = String::from_utf8_lossy(&output.stdout);
-        for line in status_output.lines() {
-            if line.starts_with("UU") {
-                // Unmerged file
-                let file_path = line[3..].trim();
-                let conflict = self.parse_conflict_from_file(file_path)?;
-                conflicts.extend(conflict);
-            }
+        let diff_output = String::from_utf8_lossy(&output.stdout);
+        for line in diff_output.lines() {
+            let file_path = line.trim();
+            let conflict = self.parse_conflict_from_file(file_path)?;
+            conflicts.extend(conflict);
         }
 
         Ok(conflicts)
