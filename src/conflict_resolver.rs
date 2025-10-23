@@ -5,6 +5,7 @@ use crate::api_client::ApiClient;
 use crate::config::Config;
 use crate::git_utils::{Conflict, ResolvedConflict};
 use anyhow::Result;
+use futures::future::select_all;
 
 pub struct ConflictResolver {
     config: Config,
@@ -42,34 +43,39 @@ impl ConflictResolver {
                 println!("Message:\n{}", message);
             }
 
-            // Try to resolve with all endpoints in parallel
-            let mut handles = Vec::new();
-            for endpoint in endpoints {
+	    // Try to resolve with all endpoints in parallel
+            let mut futures = Vec::new();
+            for (order, endpoint) in endpoints.iter().enumerate() {
                 let prompt = prompt.clone();
                 let message = message.clone();
                 let patch = patch.clone();
                 let code = code.clone();
                 let client = ApiClient::new(endpoint.clone(), self.verbose);
+                let name = endpoint.name.clone();
                 let handle = tokio::spawn(async move {
                     let start = std::time::Instant::now();
                     let result = client.query(&prompt, &message, &patch, &code).await;
                     let duration = start.elapsed().as_secs();
-                    (result, duration)
+                    (result, duration, name, order)
                 });
-                handles.push(handle);
+                futures.push(handle);
             }
 
-            // Collect results
-            let mut results = Vec::new();
-            for (index, handle) in handles.into_iter().enumerate() {
-                match handle.await {
-                    Ok((result, duration)) => {
-                        println!(" - {} completed in {} seconds", endpoints[index].name, duration);
-                        results.push(result);
-                    }
-                    Err(e) => return Err(anyhow::anyhow!("Task failed: {}", e)),
+	    let mut results = Vec::new();
+	    while !futures.is_empty() {
+		let (result, _, remaining) = select_all(futures).await;
+                futures = remaining;
+                match result {
+		    Ok((result, duration, name, order)) => {
+                        println!(" - {} completed in {} seconds", name, duration);
+                        results.push((result, order));
+		    }
+		    Err(e) => return Err(anyhow::anyhow!("Task failed: {}", e)),
                 }
-            }
+	    }
+
+	    results.sort_by_key(|k| k.1);
+            let results: Vec<_> = results.into_iter().map(|r| r.0).collect();
 
             if self.verbose {
                 println!("resolved:\n{:?}", results);
