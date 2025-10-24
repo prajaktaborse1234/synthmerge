@@ -182,7 +182,7 @@ impl ApiClient {
             })
             .map(|s| -> Result<String, anyhow::Error> {
                 Ok(format!(
-                    "{}\n{}{}",
+                    "{}{}{}",
                     ConflictResolver::PATCHED_CODE_START,
                     s?,
                     ConflictResolver::PATCHED_CODE_END

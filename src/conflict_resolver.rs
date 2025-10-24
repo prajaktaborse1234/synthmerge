@@ -181,9 +181,7 @@ impl ConflictResolver {
             format!(
                 r#"The PATCH originates from the DIFF between {}{}.
 
-{}
-{}
-{}"#,
+{}{}{}"#,
                 Self::DIFF_START,
                 Self::DIFF_END,
                 Self::DIFF_START,
@@ -221,11 +219,9 @@ Rewrite the {} lines after {} and the {} lines before {} exactly the same, inclu
         let code = self.create_code(conflict);
 
         format!(
-            r#"{}
-{patch}{}
+            r#"{}{patch}{}
 
-{}
-{code}{}
+{}{code}{}
 "#,
             Self::PATCH_START,
             Self::PATCH_END,
@@ -264,7 +260,7 @@ Rewrite the {} lines after {} and the {} lines before {} exactly the same, inclu
 
     /// Parse the API response into 3 solutions
     fn parse_response(&self, response: &ApiResponse) -> Result<Vec<String>> {
-        let start_marker = format!("{}\n", Self::PATCHED_CODE_START);
+        let start_marker = Self::PATCHED_CODE_START;
         let end_marker = Self::PATCHED_CODE_END;
         let mut results = Vec::new();
         let mut start = 0;
@@ -273,7 +269,7 @@ Rewrite the {} lines after {} and the {} lines before {} exactly the same, inclu
             println!("Response:\n{}", response.response);
         }
 
-        while let Some(start_pos) = response.response[start..].find(&start_marker) {
+        while let Some(start_pos) = response.response[start..].find(start_marker) {
             let start_pos = start + start_pos;
             let end_pos = response.response[start_pos..]
                 .find(end_marker)
