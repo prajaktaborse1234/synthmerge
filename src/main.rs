@@ -54,6 +54,16 @@ async fn main() -> Result<()> {
         std::process::exit(1);
     }
 
+    // Check if we're in a cherry-pick and extract commit if needed
+    let git_diff = if let Some(commit_hash) = git_utils.find_commit_hash()? {
+        if args.verbose {
+            println!("Extracting diff for commit {}", commit_hash);
+        }
+        git_utils.extract_diff(&commit_hash)?
+    } else {
+        None
+    };
+
     // Check if there are conflicts
     let conflicts = git_utils.find_conflicts()?;
 
@@ -65,7 +75,7 @@ async fn main() -> Result<()> {
     println!("Found {} conflicts to resolve", conflicts.len());
 
     // Resolve conflicts using AI
-    let resolver = ConflictResolver::new(config, args.verbose);
+    let resolver = ConflictResolver::new(config, args.verbose, git_diff);
     let resolved_conflicts = resolver.resolve_conflicts(&conflicts).await?;
 
     // Apply resolved conflicts back to the repository

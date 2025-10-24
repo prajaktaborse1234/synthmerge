@@ -10,11 +10,16 @@ use futures::future::select_all;
 pub struct ConflictResolver {
     config: Config,
     verbose: bool,
+    git_diff: Option<String>,
 }
 
 impl ConflictResolver {
-    pub fn new(config: Config, verbose: bool) -> Self {
-        ConflictResolver { config, verbose }
+    pub fn new(config: Config, verbose: bool, git_diff: Option<String>) -> Self {
+        ConflictResolver {
+            config,
+            verbose,
+            git_diff: Self::__git_diff(git_diff),
+        }
     }
 
     /// Resolve all conflicts using AI
@@ -46,15 +51,19 @@ impl ConflictResolver {
             // Try to resolve with all endpoints in parallel
             let mut futures = Vec::new();
             for (order, endpoint) in endpoints.iter().enumerate() {
-                let prompt = prompt.clone();
-                let message = message.clone();
-                let patch = patch.clone();
-                let code = code.clone();
                 let client = ApiClient::new(endpoint.clone(), self.verbose);
                 let name = endpoint.name.clone();
+                let api_request = crate::api_client::ApiRequest {
+                    prompt: prompt.clone(),
+                    message: message.clone(),
+                    patch: patch.clone(),
+                    code: code.clone(),
+                    config: endpoint.clone(),
+                    git_diff: self.git_diff.clone(),
+                };
                 let handle = tokio::spawn(async move {
                     let start = std::time::Instant::now();
-                    let result = client.query(&prompt, &message, &patch, &code).await;
+                    let result = client.query(&api_request).await;
                     let duration = start.elapsed();
                     (result, duration, name, order)
                 });
@@ -137,6 +146,13 @@ impl ConflictResolver {
                     let resolved_content = resolved_string[conflict.head_context.len()
                         ..resolved_string.len() - conflict.tail_context.len()]
                         .to_string();
+                    if !resolved_content.is_empty() && !resolved_content.ends_with('\n') {
+                        eprintln!(
+                            "Warning: Skipped {} - resolved content is not newline terminated",
+                            model
+                        );
+                        continue;
+                    }
 
                     resolved_conflicts.push(ResolvedConflict {
                         conflict: conflict.clone(),
@@ -151,13 +167,27 @@ impl ConflictResolver {
     }
 
     /// Create a prompt for the AI to resolve the conflict
+    fn __git_diff(git_diff: Option<String>) -> Option<String> {
+        git_diff.map(|s| {
+            format!(
+                r#"The PATCH originates from the DIFF between <|diff_start|><|diff_end|>.
+
+<|diff_start|>
+{}
+<|diff_end|>"#,
+                s
+            )
+        })
+    }
+
+    /// Create a prompt for the AI to resolve the conflict
     fn create_prompt(&self, conflict: &Conflict) -> String {
         format!(
-            r#"Apply the patch between <|patch_start|><|patch_end|> to the code between <|code_start|><|code_end|>.
+            r#"Apply the PATCH between <|patch_start|><|patch_end|> to the CODE between <|code_start|><|code_end|>.
 
-Reason about the patch and don't alter any line of code that doesn't start with a + or - sign in the patch.
+Write the reasoning about the PATCH focusing only on the modifications done in the + or - lines of the PATCH and don't make other modifications to the CODE.
 
-Finally answer with the patched code between <|code_start|><|code_end|>.
+FINALLY write the final PATCHED CODE between <|patched_code_start|><|patched_code_end|> instead of markdown fences.
 
 Rewrite the {} lines after <|code_start|> and the {} lines before <|code_end|> exactly the same, including all empty lines."#,
             conflict.nr_head_context_lines, conflict.nr_tail_context_lines
@@ -208,8 +238,8 @@ Rewrite the {} lines after <|code_start|> and the {} lines before <|code_end|> e
 
     /// Parse the API response into 3 solutions
     fn parse_response(&self, response: &crate::api_client::ApiResponse) -> Result<Vec<String>> {
-        let start_marker = "<|code_start|>\n";
-        let end_marker = "<|code_end|>";
+        let start_marker = "<|patched_code_start|>\n";
+        let end_marker = "<|patched_code_end|>";
         let mut results = Vec::new();
         let mut start = 0;
 
@@ -221,12 +251,12 @@ Rewrite the {} lines after <|code_start|> and the {} lines before <|code_end|> e
             let start_pos = start + start_pos;
             let end_pos = response.response[start_pos..]
                 .find(end_marker)
-                .ok_or_else(|| anyhow::anyhow!("Invalid format: missing <|code_end|>"))?;
+                .ok_or_else(|| anyhow::anyhow!("Invalid format: missing <|patched_code_end|>"))?;
 
             let end_pos = start_pos + end_pos;
             if start_pos > end_pos {
                 return Err(anyhow::anyhow!(
-                    "Invalid format: <|code_start|> appears after <|code_end|>"
+                    "Invalid format: <|patched_code_start|> appears after <|patched_code_end|>"
                 ));
             }
 

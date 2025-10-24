@@ -33,6 +33,8 @@ pub enum EndpointTypeConfig {
         reasoning_effort: Option<String>,
         #[serde(default)]
         temperature: f32,
+        #[serde(default)]
+        no_context: bool,
     },
     #[serde(rename = "patchpal")]
     Patchpal {

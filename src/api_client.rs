@@ -12,8 +12,8 @@ pub struct ApiRequest {
     pub message: String,
     pub patch: String,
     pub code: String,
-    pub reasoning_effort: Option<String>,
-    pub temperature: f32,
+    pub config: EndpointConfig,
+    pub git_diff: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -43,22 +43,7 @@ impl ApiClient {
     }
 
     /// Query the AI endpoint with the given prompt
-    pub async fn query(
-        &self,
-        prompt: &str,
-        message: &str,
-        patch: &str,
-        code: &str,
-    ) -> Result<ApiResponse> {
-        let api_request = ApiRequest {
-            prompt: prompt.to_string(),
-            message: message.to_string(),
-            patch: patch.to_string(),
-            code: code.to_string(),
-            reasoning_effort: self.config.config.reasoning_effort().cloned(),
-            temperature: self.config.config.temperature(),
-        };
-
+    pub async fn query(&self, api_request: &ApiRequest) -> Result<ApiResponse> {
         let response = match &self.config.config {
             crate::config::EndpointTypeConfig::OpenAI {
                 url, api_key_file, ..
@@ -68,12 +53,12 @@ impl ApiClient {
                 self.query_openai(
                     url.as_ref().map(|s| s.as_str()).unwrap_or(""),
                     api_key.trim(),
-                    &api_request,
+                    api_request,
                 )
                 .await
             }
             crate::config::EndpointTypeConfig::Patchpal { url, .. } => {
-                self.query_patchpal(url, &api_request).await
+                self.query_patchpal(url, api_request).await
             }
         }?;
 
@@ -97,16 +82,26 @@ impl ApiClient {
                 .context("Invalid API key")?,
         );
 
+        let prompt = if let Some(git_diff) = &request.git_diff
+            && !request.config.config.no_context()
+        {
+            format!("{}\n\n{}", request.prompt, git_diff)
+        } else {
+            request.prompt.clone()
+        };
+        if self.verbose {
+            println!("Prompt:\n{}", prompt);
+        }
         let mut payload = serde_json::json!({
             "model": self.config.config.model(),
             "messages": [
-                {"role": "system", "content": request.prompt},
+                {"role": "system", "content": prompt},
                 {"role": "user", "content": request.message},
             ],
-            "temperature": request.temperature,
+            "temperature": request.config.config.temperature(),
         });
-        if let Some(reasoning_effort) = &request.reasoning_effort {
-            payload["reasoning_effort"] = reasoning_effort.clone().into();
+        if let Some(reasoning_effort) = request.config.config.reasoning_effort() {
+            payload["reasoning_effort"] = serde_json::Value::String(reasoning_effort.clone());
         }
 
         let response = self
@@ -187,7 +182,10 @@ impl ApiClient {
                     .context("Failed to extract string from patchpal response")
             })
             .map(|s| -> Result<String, anyhow::Error> {
-                Ok(format!("{}{}{}", "<|code_start|>\n", s?, "<|code_end|>"))
+                Ok(format!(
+                    "{}{}{}",
+                    "<|patched_code_start|>\n", s?, "<|patched_code_end|>"
+                ))
             })
             .collect::<Result<Vec<_>, _>>()?
             .join("\n");
@@ -220,7 +218,14 @@ impl crate::config::EndpointTypeConfig {
     fn temperature(&self) -> f32 {
         match self {
             crate::config::EndpointTypeConfig::OpenAI { temperature, .. } => *temperature,
-            _ => 0.,
+            _ => 0.6,
+        }
+    }
+
+    fn no_context(&self) -> bool {
+        match self {
+            crate::config::EndpointTypeConfig::OpenAI { no_context, .. } => *no_context,
+            _ => false,
         }
     }
 }
