@@ -7,6 +7,9 @@ use crate::git_utils::GitUtils;
 use anyhow::Result;
 use clap::Parser;
 
+use env_logger::{Builder, WriteStyle};
+use log::LevelFilter;
+
 mod api_client;
 mod config;
 mod conflict_resolver;
@@ -34,6 +37,11 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    Builder::new()
+        .filter(None, LevelFilter::Error)
+        .write_style(WriteStyle::Always)
+        .build();
+
     let args = Args::parse();
 
     // Load configuration
