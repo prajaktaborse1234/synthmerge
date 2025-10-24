@@ -136,15 +136,24 @@ impl GitUtils {
         let head_context_start =
             (head_context_end.saturating_sub(self.context_lines as usize)).max(0);
         let nr_head_context_lines = head_context_end - head_context_start;
-        let head_context_lines: Vec<&str> =
-            content_lines[head_context_start..head_context_end].to_vec();
+        let head_content_lines = content_lines[..start_line].to_vec();
+        let head_content_lines =
+            Self::remove_conflict_markers(head_content_lines[..head_context_end].to_vec())?;
+        let head_context_lines = head_content_lines[head_content_lines
+            .len()
+            .saturating_sub(self.context_lines as usize)
+            .max(0)..]
+            .to_vec();
 
         let tail_context_start = (start_line + conflict_lines.len() - 1).min(content_lines.len());
         let tail_context_end =
             (tail_context_start + self.context_lines as usize).min(content_lines.len());
         let nr_tail_context_lines = tail_context_end - tail_context_start;
-        let tail_context_lines: Vec<&str> =
-            content_lines[tail_context_start..tail_context_end].to_vec();
+        let tail_content_lines = content_lines[start_line + conflict_lines.len() - 1..].to_vec();
+        let tail_content_lines = Self::remove_conflict_markers(tail_content_lines)?;
+        let tail_context_lines = tail_content_lines
+            [..tail_content_lines.len().min(self.context_lines as usize)]
+            .to_vec();
 
         Ok(Conflict {
             file_path: file_path.to_string(),
@@ -158,6 +167,43 @@ impl GitUtils {
             nr_head_context_lines,
             nr_tail_context_lines,
         })
+    }
+
+    /// Remove conflict markers from content
+    fn remove_conflict_markers(content_lines: Vec<&str>) -> Result<Vec<&str>, anyhow::Error> {
+        let mut skip_lines = false;
+        let mut in_head = false;
+        let result: Vec<&str> = content_lines
+            .into_iter()
+            .filter(|line| {
+                if line.starts_with("<<<<<<< ") {
+                    in_head = true;
+                    skip_lines = true;
+                    return false;
+                }
+                if line.starts_with("||||||| ") {
+                    in_head = false;
+                    return false;
+                }
+                if line.starts_with(">>>>>>>") {
+                    skip_lines = false;
+                    in_head = false;
+                    return false;
+                }
+                !skip_lines || in_head
+            })
+            .collect();
+
+        // Check for erratic conflict markers
+        let has_erratic_markers = result
+            .iter()
+            .any(|line| line.starts_with("||||||| ") || line.starts_with("=======\n"));
+
+        if has_erratic_markers {
+            Err(anyhow::anyhow!("Erratic conflict markers found in file"))
+        } else {
+            Ok(result)
+        }
     }
 
     /// Apply resolved conflicts back to the repository
