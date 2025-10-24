@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later OR AGPL-3.0-or-later
 // Copyright (C) 2025  Red Hat, Inc.
 
-use crate::Args;
 use crate::api_client::{ApiClient, ApiRequest, ApiResponse};
 use crate::config::Config;
 use crate::git_utils::{Conflict, ResolvedConflict};
@@ -10,7 +9,6 @@ use futures::future::select_all;
 
 pub struct ConflictResolver {
     config: Config,
-    args: Args,
     git_diff: Option<String>,
 }
 
@@ -23,10 +21,9 @@ impl ConflictResolver {
     pub const CODE_END: &str = "<|code_end|>";
     pub const PATCHED_CODE_START: &str = "<|patched_code_start|>";
     pub const PATCHED_CODE_END: &str = "<|patched_code_end|>";
-    pub fn new(config: Config, args: Args, git_diff: Option<String>) -> Self {
+    pub fn new(config: Config, git_diff: Option<String>) -> Self {
         ConflictResolver {
             config,
-            args,
             git_diff: Self::__git_diff(git_diff),
         }
     }
@@ -58,7 +55,7 @@ impl ConflictResolver {
             // Try to resolve with all endpoints in parallel
             let mut futures = Vec::new();
             for (order, endpoint) in endpoints.iter().enumerate() {
-                let client = ApiClient::new(endpoint.clone(), self.args.verbose);
+                let client = ApiClient::new(endpoint.clone());
                 let name = endpoint.name.clone();
                 let api_request = ApiRequest {
                     prompt: prompt.clone(),

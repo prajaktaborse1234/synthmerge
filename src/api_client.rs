@@ -26,21 +26,16 @@ pub struct ApiResponse {
 pub struct ApiClient {
     config: EndpointConfig,
     client: reqwest::Client,
-    verbose: bool,
 }
 
 impl ApiClient {
-    pub fn new(config: EndpointConfig, verbose: bool) -> Self {
+    pub fn new(config: EndpointConfig) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(600))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
-        ApiClient {
-            config,
-            client,
-            verbose,
-        }
+        ApiClient { config, client }
     }
 
     /// Query the AI endpoint with the given prompt
