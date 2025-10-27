@@ -13,7 +13,7 @@ pub struct ApiRequest {
     pub message: String,
     pub patch: String,
     pub code: String,
-    pub config: EndpointConfig,
+    pub endpoint: EndpointConfig,
     pub git_diff: Option<String>,
 }
 
@@ -24,47 +24,41 @@ pub struct ApiResponse {
 }
 
 pub struct ApiClient {
-    config: EndpointConfig,
+    endpoint: EndpointConfig,
     client: reqwest::Client,
 }
 
 impl ApiClient {
-    pub fn new(config: EndpointConfig) -> Self {
+    pub fn new(endpoint: EndpointConfig) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(600))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
-        ApiClient { config, client }
+        ApiClient { endpoint, client }
     }
 
     /// Query the AI endpoint with the given prompt
     pub async fn query(&self, api_request: &ApiRequest) -> Result<ApiResponse> {
-        let response = match &self.config.config {
-            EndpointTypeConfig::OpenAI {
-                url, api_key_file, ..
-            } => {
-                let api_key = std::fs::read_to_string(shellexpand::full(api_key_file)?.as_ref())
-                    .context("Failed to read API key file")?;
-                self.query_openai(
-                    url.as_ref().map(|s| s.as_str()).unwrap_or(""),
-                    api_key.trim(),
-                    api_request,
-                )
-                .await
+        let response = match &self.endpoint.config {
+            EndpointTypeConfig::OpenAI { api_key_file, .. } => {
+                let api_key = if let Some(key_file) = api_key_file {
+                    std::fs::read_to_string(shellexpand::full(key_file)?.as_ref())
+                        .context("Failed to read API key file")?
+                        .trim()
+                        .to_string()
+                } else {
+                    String::new()
+                };
+                self.query_openai(&api_key, api_request).await
             }
-            EndpointTypeConfig::Patchpal { url, .. } => self.query_patchpal(url, api_request).await,
+            EndpointTypeConfig::Patchpal { .. } => self.query_patchpal(api_request).await,
         }?;
 
         Ok(response)
     }
 
-    async fn query_openai(
-        &self,
-        api_url: &str,
-        api_key: &str,
-        request: &ApiRequest,
-    ) -> Result<ApiResponse> {
+    async fn query_openai(&self, api_key: &str, request: &ApiRequest) -> Result<ApiResponse> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::CONTENT_TYPE,
@@ -76,8 +70,18 @@ impl ApiClient {
                 .context("Invalid API key")?,
         );
 
+        let (model, reasoning_effort, temperature, no_context) = match &request.endpoint.config {
+            EndpointTypeConfig::OpenAI {
+                model,
+                reasoning_effort,
+                temperature,
+                no_context,
+                ..
+            } => (model, reasoning_effort, temperature, no_context),
+            _ => panic!("cannot happen"),
+        };
         let prompt = if let Some(git_diff) = &request.git_diff
-            && !request.config.config.no_context()
+            && !no_context.unwrap_or(false)
         {
             format!("{}\n\n{}", request.prompt, git_diff)
         } else {
@@ -85,20 +89,26 @@ impl ApiClient {
         };
         log::debug!("Prompt:\n{}", prompt);
         let mut payload = serde_json::json!({
-            "model": self.config.config.model(),
+            "model": model,
             "messages": [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": request.message},
             ],
-            "temperature": request.config.config.temperature(),
         });
-        if let Some(reasoning_effort) = request.config.config.reasoning_effort() {
-            payload["reasoning_effort"] = serde_json::Value::String(reasoning_effort.clone());
+        if let Some(reasoning_effort) = reasoning_effort {
+            payload["reasoning_effort"] = serde_json::Value::String(reasoning_effort.to_string());
         }
+        if let Some(temperature) = temperature {
+            let temperature = serde_json::Number::from_f64(*temperature);
+            let temperature =
+                serde_json::Value::Number(temperature.expect("Temperature value is required"));
+            payload["temperature"] = temperature;
+        }
+        log::debug!("Request raw: {}", payload);
 
         let response = self
             .client
-            .post(api_url)
+            .post(request.endpoint.url.clone())
             .headers(headers)
             .json(&payload)
             .send()
@@ -131,7 +141,7 @@ impl ApiClient {
         })
     }
 
-    async fn query_patchpal(&self, url: &str, request: &ApiRequest) -> Result<ApiResponse> {
+    async fn query_patchpal(&self, request: &ApiRequest) -> Result<ApiResponse> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::CONTENT_TYPE,
@@ -143,7 +153,7 @@ impl ApiClient {
 						     "code" : request.code}});
         let response = self
             .client
-            .post(url)
+            .post(request.endpoint.url.clone())
             .headers(headers.clone())
             .json(&payload)
             .send()
@@ -184,39 +194,6 @@ impl ApiClient {
             response: content.to_string(),
             total_tokens: None,
         })
-    }
-}
-
-// Extension trait to get config values
-impl EndpointTypeConfig {
-    fn model(&self) -> &str {
-        match self {
-            EndpointTypeConfig::OpenAI { model, .. } => model,
-            _ => "",
-        }
-    }
-
-    fn reasoning_effort(&self) -> Option<&String> {
-        match self {
-            EndpointTypeConfig::OpenAI {
-                reasoning_effort, ..
-            } => reasoning_effort.as_ref(),
-            _ => None,
-        }
-    }
-
-    fn temperature(&self) -> f32 {
-        match self {
-            EndpointTypeConfig::OpenAI { temperature, .. } => *temperature,
-            _ => 0.6,
-        }
-    }
-
-    fn no_context(&self) -> bool {
-        match self {
-            EndpointTypeConfig::OpenAI { no_context, .. } => *no_context,
-            _ => false,
-        }
     }
 }
 

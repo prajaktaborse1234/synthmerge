@@ -14,6 +14,7 @@ pub struct Config {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EndpointConfig {
     pub name: String,
+    pub url: String,
     #[serde(flatten)]
     pub config: EndpointTypeConfig,
 }
@@ -24,23 +25,18 @@ pub enum EndpointTypeConfig {
     #[serde(rename = "openai")]
     OpenAI {
         #[serde(default)]
-        url: Option<String>,
-        #[serde(default)]
         model: String,
         #[serde(default)]
-        api_key_file: String,
+        api_key_file: Option<String>,
         #[serde(default)]
         reasoning_effort: Option<String>,
         #[serde(default)]
-        temperature: f32,
+        temperature: Option<f64>,
         #[serde(default)]
-        no_context: bool,
+        no_context: Option<bool>,
     },
     #[serde(rename = "patchpal")]
-    Patchpal {
-        #[serde(default)]
-        url: String,
-    },
+    Patchpal {},
 }
 
 impl Config {
@@ -48,7 +44,7 @@ impl Config {
         let contents = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-        let config: Config = serde_yaml::from_str(&contents)
+        let mut config: Config = serde_yaml::from_str(&contents)
             .with_context(|| format!("Failed to parse config file as YAML: {}", path.display()))?;
 
         if config.endpoints.is_empty() {
@@ -57,6 +53,43 @@ impl Config {
                 path.display()
             ));
         }
+
+        // Trim whitespace from endpoint
+        for endpoint in &mut config.endpoints {
+            endpoint.name = endpoint.name.trim().to_string();
+            endpoint.url = endpoint.url.trim().to_string();
+        }
+
+        // Check that each endpoint has required fields
+        for (i, endpoint) in config.endpoints.iter().enumerate() {
+            if endpoint.name.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "Endpoint {} in config file {} has empty name",
+                    i,
+                    path.display()
+                ));
+            }
+            if endpoint.url.trim().is_empty() {
+                return Err(anyhow::anyhow!(
+                    "Endpoint {} in config file {} has empty url",
+                    i,
+                    path.display()
+                ));
+            }
+        }
+
+        let mut seen_names = std::collections::HashSet::new();
+        for (i, endpoint) in config.endpoints.iter().enumerate() {
+            if !seen_names.insert(&endpoint.name) {
+                return Err(anyhow::anyhow!(
+                    "Endpoint {} in config file {} has duplicate name '{}'",
+                    i,
+                    path.display(),
+                    endpoint.name
+                ));
+            }
+        }
+        log::debug!("{:?}", config);
 
         Ok(config)
     }

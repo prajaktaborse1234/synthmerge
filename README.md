@@ -15,7 +15,7 @@
    Relies on Git's `diff3` conflict markers (requires `git config merge.conflictStyle diff3`)
 
 3. **Developer workflow freedom**  
-   Works with *any* editor (VS Code, Emacs, Vim, etc.) - no new GUI app required
+   Works with *any* editor (VS Code, Emacs, Vim, etc.)
 
 4. **Model flexibility**  
    Removes the Patchpal fine-tuning requirement, allowing any instruct model to be used
@@ -71,7 +71,7 @@
 
 4. **Git gets updated**  
    - synthmerge inserts the AI resolution into existing diff3 markers
-   - You review in your editor (no GUI needed)
+   - You review in your editor
 
 ---
 
@@ -90,14 +90,12 @@ endpoints:
     url: "http://localhost:8811/v1/chat/completions"
     type: "openai"
     model: "your favorite open weight open source coder model"
-    api_key_file: "/dev/null"
-    temperature: 0.6
+    temperature: 0.7
 
   - name: "llama.cpp vulkan no_context"
     url: "http://localhost:8811/v1/chat/completions"
     type: "openai"
     model: "your favorite open weight open source coder model"
-    api_key_file: "/dev/null"
     no_context: true
 
   - name: "Gemini 2.5 pro"
@@ -107,8 +105,6 @@ endpoints:
     api_key_file: "~/.gemini-api-key"
     reasoning_effort: "low"
 ```
-
-> 💡 **Note**: `api_key_file: "/dev/null"` for local LLMs (like `llama.cpp`) is required by the API client but ignored.
 
 ---
 
@@ -124,7 +120,7 @@ git cherry-pick -x <commit>
 # Resolve conflicts with AI
 synthmerge
 
-# Review in your editor (no GUI needed!)
+# Review in your editor
 git diff --name-only --diff-filter=U
 ```
 
