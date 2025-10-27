@@ -28,7 +28,7 @@
 ## ✨ Key Features
 
 - **Zero Git feature duplication**  
-  Leverages Git's `diff3` conflict markers to identify context for patch application. If Git's conflict resolution isn't good enough, Git's conflict resolution should be improved rather than reinventing it.
+  Leverages Git's `diff3` conflict markers to identify context for patch application.
 
 - **Multi-AI endpoint support**  
   Supports parallel querying of any combination of models:
@@ -86,7 +86,14 @@ endpoints:
     type: "openai"
     model: "your favorite open weight open source coder model"
     api_key_file: "/dev/null"
-    temperature: 0.7
+    temperature: 0.6
+
+  - name: "llama.cpp vulkan no_context"
+    url: "http://localhost:8811/v1/chat/completions"
+    type: "openai"
+    model: "your favorite open weight open source coder model"
+    api_key_file: "/dev/null"
+    no_context: true
 
   - name: "Gemini 2.5 pro"
     url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"

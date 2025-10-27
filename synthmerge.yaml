@@ -10,7 +10,13 @@ endpoints:
     model: "your favorite open weight open source coder model"
     api_key_file: "/dev/null"
     temperature: 0.6
-    no_context: false
+
+  - name: "llama.cpp vulkan no_context"
+    url: "http://localhost:8811/v1/chat/completions"
+    type: "openai"
+    model: "your favorite open weight open source coder model"
+    api_key_file: "/dev/null"
+    no_context: true
 
   - name: "Gemini 2.5 pro"
     url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
