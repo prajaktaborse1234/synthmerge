@@ -390,18 +390,31 @@ impl GitUtils {
 
         // Check for cherry-pick, merge, and rebase HEAD files
         let mut head_files = Vec::new();
-        for &prefix in &["CHERRY_PICK", "MERGE", "REBASE"] {
+        for &prefix in &["CHERRY_PICK", "MERGE", "REBASE", "REVERT"] {
             head_files.push((prefix, format!("{}/{}_{}", git_dir, prefix, "HEAD")));
         }
 
+        let mut content: Option<String> = None;
+        let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
+
         for (name, path) in head_files {
             if std::path::Path::new(&path).exists() {
-                let content = std::fs::read_to_string(&path)
-                    .with_context(|| format!("Failed to read {}", name))?;
-                return Ok(Some(content.trim().to_string()));
+                let metadata = std::fs::metadata(&path)
+                    .with_context(|| format!("Failed to get metadata for {}", name))?;
+                let file_time = metadata
+                    .modified()
+                    .with_context(|| format!("Failed to get modification time for {}", name))?;
+
+                if file_time > latest_time {
+                    latest_time = file_time;
+                    let this_content = std::fs::read_to_string(&path)
+                        .with_context(|| format!("Failed to read {}", name))?;
+                    content = Some(this_content.trim().to_string());
+                }
             }
         }
-        Ok(None)
+
+        Ok(content)
     }
 
     /// Extract the patch from a specific commit hash
