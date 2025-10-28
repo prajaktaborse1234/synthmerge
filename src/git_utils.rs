@@ -16,6 +16,11 @@ impl GitUtils {
     const REBASE_MESSAGE_FILE: &str = "rebase-merge/message";
     const MERGE_MSG_FILE: &str = "MERGE_MSG";
 
+    const HEAD_MARKER: &str = "<<<<<<< ";
+    const BASE_MARKER: &str = "||||||| ";
+    const CONFLICT_MARKER: &str = "=======";
+    const END_MARKER: &str = ">>>>>>>";
+
     pub fn new(context_lines: u32) -> Self {
         GitUtils {
             context_lines,
@@ -25,7 +30,6 @@ impl GitUtils {
 
     /// Check that git cherry-pick default is diff3 for merge.conflictStyle
     pub fn check_diff3(&self) -> Result<()> {
-        // Check that git cherry-pick default is diff3 for merge.conflictStyle
         let output = Command::new("git")
             .args(["config", "--get", "merge.conflictStyle"])
             .output()
@@ -82,8 +86,18 @@ impl GitUtils {
             .with_context(|| format!("Failed to read file: {}", file_path))?;
 
         let mut conflicts = Vec::new();
-        let re =
-            Regex::new(r"(?s)(<<<<<<< HEAD.*?\|\|\|\|\|\|\|.*?=======.*?>>>>>>>.*?\n)").unwrap();
+        let re = Regex::new(&format!(
+            r"(?s)({}HEAD.*?{}.*?{}.*?{}.*?\n)",
+            GitUtils::HEAD_MARKER,
+            GitUtils::BASE_MARKER
+                .chars()
+                .map(|c| format!(r"\{}", c))
+                .collect::<Vec<_>>()
+                .join(""),
+            GitUtils::CONFLICT_MARKER,
+            GitUtils::END_MARKER,
+        ))
+        .unwrap();
 
         for cap in re.captures_iter(&content) {
             let conflict_text = cap.get(0).unwrap().as_str();
@@ -112,23 +126,23 @@ impl GitUtils {
 
         let local_start = conflict_lines
             .iter()
-            .position(|&line| line == "<<<<<<< HEAD\n")
+            .position(|&line| line == format!("{}HEAD\n", GitUtils::HEAD_MARKER))
             .context("Failed to find HEAD marker")?;
 
         let base_start = conflict_lines
             .iter()
-            .position(|&line| line.starts_with("||||||| "))
+            .position(|&line| line.starts_with(GitUtils::BASE_MARKER))
             .context("Failed to find base marker")?;
 
         let remote_start = conflict_lines
             .iter()
-            .position(|&line| line == "=======\n")
+            .position(|&line| line == format!("{}\n", GitUtils::CONFLICT_MARKER))
             .context("Failed to find conflict marker")?;
 
         let remote_end = conflict_lines
             .iter()
-            .position(|&line| line.starts_with(">>>>>>>"))
-            .context("Failed to find conflict end marke")?;
+            .position(|&line| line.starts_with(GitUtils::END_MARKER))
+            .context("Failed to find conflict end marker")?;
 
         if remote_end <= remote_start || remote_start <= base_start || base_start <= local_start {
             return Err(anyhow::anyhow!("Invalid conflict markers"));
@@ -184,16 +198,16 @@ impl GitUtils {
         let result: Vec<&str> = content_lines
             .into_iter()
             .filter(|line| {
-                if line.starts_with("<<<<<<< ") {
+                if line.starts_with(GitUtils::HEAD_MARKER) {
                     in_head = true;
                     skip_lines = true;
                     return false;
                 }
-                if line.starts_with("||||||| ") {
+                if line.starts_with(GitUtils::BASE_MARKER) {
                     in_head = false;
                     return false;
                 }
-                if line.starts_with(">>>>>>>") {
+                if line.starts_with(GitUtils::END_MARKER) {
                     skip_lines = false;
                     in_head = false;
                     return false;
@@ -203,9 +217,10 @@ impl GitUtils {
             .collect();
 
         // Check for erratic conflict markers
-        let has_erratic_markers = result
-            .iter()
-            .any(|line| line.starts_with("||||||| ") || line.starts_with("=======\n"));
+        let has_erratic_markers = result.iter().any(|line| {
+            line.starts_with(GitUtils::BASE_MARKER)
+                || line == &format!("{}\n", GitUtils::CONFLICT_MARKER)
+        });
 
         if has_erratic_markers {
             Err(anyhow::anyhow!("Erratic conflict markers found in file"))
@@ -239,10 +254,10 @@ impl GitUtils {
             let insert_line = conflict.conflict.start_line + conflict.conflict.remote_start - 1;
 
             // Insert the resolved content with markers
-            let marker_raw = "||||||| synthmerge: ";
+            let marker_raw = format!("{}{}: ", Self::BASE_MARKER, env!("CARGO_PKG_NAME"));
             let marker = format!("{}{}\n", marker_raw, conflict.model);
             let current_line = &lines[insert_line];
-            if current_line != "=======\n" && !current_line.starts_with(marker_raw) {
+            if current_line != "=======\n" && !current_line.starts_with(&marker_raw) {
                 log::error!("Invalid conflict marker found at line {}", insert_line);
                 continue;
             }

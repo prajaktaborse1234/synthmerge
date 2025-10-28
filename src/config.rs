@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_config_loading() {
-        let config_yaml = include_str!("../synthmerge.yaml");
+        let config_yaml = include_str!(concat!("../", env!("CARGO_PKG_NAME"), ".yaml"));
         let config: Config = serde_yaml::from_str(config_yaml).unwrap();
         assert_eq!(config.endpoints.len(), 4);
         assert_eq!(config.endpoints[0].name, "Patchpal AI");

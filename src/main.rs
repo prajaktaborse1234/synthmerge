@@ -19,7 +19,7 @@ struct Args {
     #[arg(
         short = 'c',
         long = "config",
-        default_value = "~/.config/synthmerge.yaml"
+	default_value = concat!("~/.config/", env!("CARGO_PKG_NAME"), ".yaml")
     )]
     config_path: String,
 
