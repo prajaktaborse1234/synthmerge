@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later OR AGPL-3.0-or-later
 // Copyright (C) 2025  Red Hat, Inc.
 
+use crate::conflict_resolver::{Conflict, ResolvedConflict};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::fs;
@@ -503,27 +504,6 @@ impl GitUtils {
 
         Ok(Some(result_lines.join("\n")))
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct Conflict {
-    pub file_path: String,
-    pub local: String,
-    pub base: String,
-    pub remote: String,
-    pub head_context: String,
-    pub tail_context: String,
-    pub start_line: usize,
-    pub remote_start: usize,
-    pub nr_head_context_lines: usize,
-    pub nr_tail_context_lines: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct ResolvedConflict {
-    pub conflict: Conflict,
-    pub resolved_version: String,
-    pub model: String,
 }
 
 // Local Variables:

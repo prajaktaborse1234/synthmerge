@@ -3,9 +3,29 @@
 
 use crate::api_client::{ApiClient, ApiRequest, ApiResponse};
 use crate::config::Config;
-use crate::git_utils::{Conflict, ResolvedConflict};
 use anyhow::Result;
 use futures::future::select_all;
+
+#[derive(Debug, Clone)]
+pub struct Conflict {
+    pub file_path: String,
+    pub local: String,
+    pub base: String,
+    pub remote: String,
+    pub head_context: String,
+    pub tail_context: String,
+    pub start_line: usize,
+    pub remote_start: usize,
+    pub nr_head_context_lines: usize,
+    pub nr_tail_context_lines: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolvedConflict {
+    pub conflict: Conflict,
+    pub resolved_version: String,
+    pub model: String,
+}
 
 pub struct ConflictResolver {
     config: Config,
