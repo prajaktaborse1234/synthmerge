@@ -31,7 +31,7 @@ pub struct ApiClient {
 impl ApiClient {
     pub fn new(endpoint: EndpointConfig) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(600))
+            .timeout(Duration::from_secs(endpoint.timeout))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 

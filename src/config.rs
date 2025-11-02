@@ -15,8 +15,14 @@ pub struct Config {
 pub struct EndpointConfig {
     pub name: String,
     pub url: String,
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
     #[serde(flatten)]
     pub config: EndpointTypeConfig,
+}
+
+fn default_timeout() -> u64 {
+    60
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
