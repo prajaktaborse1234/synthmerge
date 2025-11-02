@@ -152,9 +152,11 @@ impl<'a> ConflictResolver<'a> {
                     }
                 };
 
+                let mut dups = 0;
+                let mut seen_resolved = std::collections::HashMap::new();
                 for (n, resolved_string) in resolved.iter().enumerate() {
                     let model = if n > 0 {
-                        format!("{} #{}", endpoints[i].name, n + 1)
+                        format!("{} #{}", endpoints[i].name, n + 1 - dups)
                     } else {
                         endpoints[i].name.clone()
                     };
@@ -177,6 +179,14 @@ impl<'a> ConflictResolver<'a> {
                         );
                         continue;
                     }
+                    // Check if this resolved_content is already in the results
+                    let key = (i, resolved_content.clone());
+                    if seen_resolved.contains_key(&key) {
+                        log::debug!("Skipping {} - duplicate resolved conflict", model);
+                        dups += 1;
+                        continue;
+                    }
+                    seen_resolved.insert(key, model.clone());
 
                     resolved_conflicts.push(ResolvedConflict {
                         dedup: DedupResolvedConflict {
