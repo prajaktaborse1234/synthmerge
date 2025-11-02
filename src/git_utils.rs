@@ -352,8 +352,8 @@ impl GitUtils {
         ordered_result
     }
 
-    /// Update the git merge message to include Assisted-by line
-    fn update_merge_message(&self) -> Result<()> {
+    /// Get the git root directory
+    fn get_git_root(&self) -> Result<String> {
         let output = Command::new("git")
             .args(["rev-parse", "--show-toplevel"])
             .output()
@@ -367,6 +367,31 @@ impl GitUtils {
         }
 
         let git_root = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(git_root)
+    }
+
+    /// Get the git directory
+    fn get_git_dir(&self) -> Result<String> {
+        let output = Command::new("git")
+            .args(["rev-parse", "--git-dir"])
+            .output()
+            .context("Failed to execute git rev-parse")?;
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "Git rev-parse failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let git_dir = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(git_dir)
+    }
+
+    /// Update the git merge message to include Assisted-by line
+    fn update_merge_message(&self) -> Result<()> {
+        let git_root = self.get_git_root()?;
+
         let merge_msg_path = if self.in_rebase {
             format!("{}/.git/{}", git_root, Self::REBASE_MESSAGE_FILE)
         } else {
@@ -425,19 +450,7 @@ impl GitUtils {
 
     /// Check if we are currently in a cherry-pick, merge, or rebase state
     pub fn find_commit_hash(&mut self) -> Result<Option<String>> {
-        let output = Command::new("git")
-            .args(["rev-parse", "--git-dir"])
-            .output()
-            .context("Failed to execute git rev-parse")?;
-
-        if !output.status.success() {
-            return Err(anyhow::anyhow!(
-                "Git rev-parse failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-
-        let git_dir = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let git_dir = self.get_git_dir()?;
 
         // Check for cherry-pick, merge, and rebase HEAD files
         let mut head_files = Vec::new();
