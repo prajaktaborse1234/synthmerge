@@ -11,6 +11,7 @@ mod api_client;
 mod config;
 mod conflict_resolver;
 mod git_utils;
+mod logger;
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -28,16 +29,9 @@ struct Args {
     context_lines: u32,
 }
 
-fn log_init() {
-    let env = env_logger::Env::default().default_filter_or("warn");
-    env_logger::Builder::from_env(env)
-        .format_timestamp(None)
-        .init();
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
-    log_init();
+    logger::log_init();
     let args = Args::parse();
 
     // Load configuration
