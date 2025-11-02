@@ -499,14 +499,28 @@ impl GitUtils {
 
     /// Extract the patch from a specific commit hash
     pub fn extract_diff(&self, commit_hash: &str) -> Result<Option<String>> {
+        self.extract_diff_in_dir(commit_hash, None)
+    }
+
+    /// Extract the patch from a specific commit hash
+    pub fn extract_diff_in_dir(
+        &self,
+        commit_hash: &str,
+        dir: Option<&str>,
+    ) -> Result<Option<String>> {
+        let context_lines = &format!("-U{}", self.context_lines);
+        let mut args = vec![
+            "show",
+            "--pretty=",
+            "--no-color",
+            context_lines,
+            commit_hash,
+        ];
+        if let Some(directory) = dir {
+            args.splice(0..0, ["-C", directory].iter().cloned());
+        }
         let output = Command::new("git")
-            .args([
-                "show",
-                "--pretty=",
-                "--no-color",
-                &format!("-U{}", self.context_lines),
-                commit_hash,
-            ])
+            .args(&args)
             .output()
             .context("Failed to execute git show")?;
 
