@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later OR AGPL-3.0-or-later
 // Copyright (C) 2025  Red Hat, Inc.
 
-use crate::conflict_resolver::{Conflict, DedupResolvedConflict, ResolvedConflict};
+use crate::conflict_resolver::{Conflict, ResolvedConflict};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::fs;
@@ -193,7 +193,7 @@ impl GitUtils {
     }
 
     /// Remove conflict markers from content
-    fn remove_conflict_markers(content_lines: Vec<&str>) -> Result<Vec<&str>, anyhow::Error> {
+    fn remove_conflict_markers(content_lines: Vec<&str>) -> Result<Vec<&str>> {
         let mut skip_lines = false;
         let mut in_head = false;
         let result: Vec<&str> = content_lines
@@ -237,16 +237,12 @@ impl GitUtils {
         for conflict in conflicts.iter().rev() {
             println!(
                 "Applying resolved conflict for: {}:{} - {}",
-                conflict.dedup.conflict.file_path,
-                conflict.dedup.conflict.start_line,
-                conflict.dedup.model
+                conflict.conflict.file_path, conflict.conflict.start_line, conflict.model
             );
 
             // Read the file
-            let mut content =
-                fs::read_to_string(&conflict.dedup.conflict.file_path).with_context(|| {
-                    format!("Failed to read file: {}", conflict.dedup.conflict.file_path)
-                })?;
+            let mut content = fs::read_to_string(&conflict.conflict.file_path)
+                .with_context(|| format!("Failed to read file: {}", conflict.conflict.file_path))?;
 
             // Split content into lines
             let mut lines: Vec<String> = content
@@ -256,12 +252,11 @@ impl GitUtils {
 
             // Calculate the line where we want to insert the resolved content
             //print startline and remote start
-            let insert_line =
-                conflict.dedup.conflict.start_line + conflict.dedup.conflict.remote_start - 1;
+            let insert_line = conflict.conflict.start_line + conflict.conflict.remote_start - 1;
 
             // Insert the resolved content with markers
             let marker_raw = format!("{}{}: ", Self::BASE_MARKER, env!("CARGO_PKG_NAME"));
-            let marker = format!("{}{}\n", marker_raw, conflict.dedup.model);
+            let marker = format!("{}{}\n", marker_raw, conflict.model);
             let current_line = &lines[insert_line];
             if current_line != "=======\n" && !current_line.starts_with(&marker_raw) {
                 log::error!("Invalid conflict marker found at line {}", insert_line);
@@ -269,7 +264,6 @@ impl GitUtils {
             }
             lines.insert(insert_line, marker);
             let resolved_lines: Vec<String> = conflict
-                .dedup
                 .resolved_version
                 .lines()
                 .map(|s| s.to_string())
@@ -281,11 +275,8 @@ impl GitUtils {
             content = lines.join("");
 
             // Write back to file
-            fs::write(&conflict.dedup.conflict.file_path, content).with_context(|| {
-                format!(
-                    "Failed to write file: {}",
-                    conflict.dedup.conflict.file_path
-                )
+            fs::write(&conflict.conflict.file_path, content).with_context(|| {
+                format!("Failed to write file: {}", conflict.conflict.file_path)
             })?;
         }
 
@@ -302,8 +293,8 @@ impl GitUtils {
         // Group conflicts by resolved_version and start_line
         for conflict in conflicts {
             map.entry((
-                conflict.dedup.resolved_version.clone(),
-                conflict.dedup.conflict.start_line,
+                conflict.resolved_version.clone(),
+                conflict.conflict.start_line,
             ))
             .or_default()
             .push(conflict);
@@ -312,22 +303,20 @@ impl GitUtils {
         // For each group, create a new conflict with combined model names
         let mut result = Vec::new();
         for ((resolved_version, _), group) in map {
-            let model = group
-                .iter()
-                .map(|c| c.dedup.model.as_str())
-                .collect::<Vec<_>>()
-                .join(", ");
+            let model = Self::combine_model_names(group.as_slice());
 
             // Use the first conflict in the group as the base
             let base_conflict = group[0];
             result.push(ResolvedConflict {
-                dedup: DedupResolvedConflict {
-                    conflict: base_conflict.dedup.conflict.clone(),
-                    resolved_version,
-                    model,
-                },
-                duration: base_conflict.duration,
-                total_tokens: base_conflict.total_tokens,
+                conflict: base_conflict.conflict.clone(),
+                resolved_version,
+                model,
+                duration: group
+                    .iter()
+                    .map(|c| c.duration)
+                    .max_by(|a, b| a.partial_cmp(b).unwrap())
+                    .unwrap_or(0.0),
+                total_tokens: Some(group.iter().map(|c| c.total_tokens.unwrap_or(0)).sum()),
             });
         }
 
@@ -336,20 +325,79 @@ impl GitUtils {
         let mut seen = std::collections::HashSet::new();
 
         for original in conflicts {
-            let key = (
-                &original.dedup.resolved_version,
-                original.dedup.conflict.start_line,
-            );
+            let key = (&original.resolved_version, original.conflict.start_line);
             if seen.insert(key)
                 && let Some(pos) = result
                     .iter()
-                    .position(|r| (&r.dedup.resolved_version, r.dedup.conflict.start_line) == key)
+                    .position(|r| (&r.resolved_version, r.conflict.start_line) == key)
             {
                 ordered_result.push(result[pos].clone());
             }
         }
 
         ordered_result
+    }
+
+    fn combine_model_names(group: &[&ResolvedConflict]) -> String {
+        use std::collections::HashMap;
+        let mut suffix_map: HashMap<String, Vec<String>> = HashMap::new();
+
+        // Group models by their prefix (everything before the last '(')
+        for conflict in group {
+            let model_name = &conflict.model;
+            if let Some(pos) = model_name.rfind('(') {
+                let prefix = &model_name[..pos];
+                let suffix_start = pos + 1;
+                if let Some(suffix_end) = model_name[suffix_start..].find(')') {
+                    let suffix = &model_name[suffix_start..suffix_start + suffix_end];
+                    let entry = suffix_map.entry(prefix.to_string()).or_default();
+                    assert!(
+                        !entry.contains(&suffix.to_string()),
+                        "Duplicate suffix found: {} for prefix {}",
+                        suffix,
+                        prefix
+                    );
+                    entry.push(suffix.to_string());
+                } else {
+                    // No closing parenthesis, treat as regular name
+                    let entry = suffix_map.entry(model_name.clone()).or_default();
+                    assert!(
+                        entry.is_empty(),
+                        "Duplicate empty suffix found for model: {}",
+                        model_name
+                    );
+                    entry.push("".to_string());
+                }
+            } else {
+                // No parentheses, treat as regular name
+                let entry = suffix_map.entry(model_name.clone()).or_default();
+                assert!(
+                    entry.is_empty(),
+                    "Duplicate empty suffix found for model: {}",
+                    model_name
+                );
+                entry.push("".to_string());
+            }
+        }
+        let mut combined_names = Vec::new();
+
+        for (prefix, suffixes) in suffix_map {
+            if suffixes.iter().any(|s| s.is_empty()) {
+                // If any model has no suffix, include all models as is
+                combined_names.push(prefix);
+            } else {
+                // Combine suffixes into a single string like "(suffix1|suffix2|suffix3)"
+                let unique_suffixes: std::collections::HashSet<_> = suffixes.into_iter().collect();
+                let suffixes_str = unique_suffixes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join("|");
+                combined_names.push(format!("{}({})", prefix, suffixes_str));
+            }
+        }
+
+        combined_names.join(", ")
     }
 
     /// Get the git root directory

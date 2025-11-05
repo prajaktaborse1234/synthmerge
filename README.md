@@ -6,16 +6,16 @@
 
 ---
 
-## 🌟 Core Philosophy
+## 🌟 Core Principles
 
-1. **Separation of concerns**  
-   Pure AI inference layer that doesn't duplicate Git functionality
+1. **Specialized AI Layer**  
+   Dedicated AI inference system that complements Git without duplicating its core functionality
 
-2. **Git dependency**  
-   Relies on Git's `diff3` conflict markers (requires `git config merge.conflictStyle diff3`)
+2. **Git Integration**  
+   Leverages Git's `diff3` conflict markers as the foundation (requires `git config merge.conflictStyle diff3`)
 
-3. **Developer workflow freedom**  
-   Works with *any* editor (VS Code, Emacs, Vim, etc.)
+3. **Editor Agnostic**  
+   Compatible with any development environment (VS Code, Emacs, Vim, etc.)
 
 ---
 
@@ -33,22 +33,26 @@
 
 - **Parallel Multi-AI Endpoint Support**  
   Simultaneously queries multiple AI models to resolve conflicts:
-  - Patchpal-backend (fine-tuned specifically for conflict resolution)
+  - [Patchpal-backend](https://gitlab.com/patchpal-ai/patchpal-backend) (fine-tuned specifically for conflict resolution)
   - Self-hosted open-weight open source LLMs with OpenAI-compatible endpoints
   - Gemini (via OpenAI-compatible API)
 
+- **Parameter Variants Support**  
+  Each AI endpoint can be configured with multiple parameter variants to run multiple inference strategies:
+  - Different reasoning effort levels (high, medium, low)
+  - Temperature, top_p, top_k, min_p sampling parameters
+  - Context handling options (no_context flag)
+
 - **Results Deduplication**  
-  Consolidates identical solutions and displays model agreement
+  Consolidates identical solutions and displays model and/or parameter variant agreement
 
 - **Review Using Your Workflow**  
   - Resolved conflicts appear in your editor with model attribution
   - AI-generated code requires manual review before commit
 
 - **Fail-Safe Design**  
-  When one model fails to resolve a conflict, Git's original conflict remains alongside solutions from other models for that hunk
-
-- **Configurable**  
-  Customize inference servers: reasoning effort, temperature, no_context ...
+  - When one model fails to resolve a conflict, Git's original conflict remains alongside solutions from other models for that hunk
+  - Each AI endpoint can be configured with timeout, delay, and max_delay parameters
 
 ---
 
@@ -87,25 +91,37 @@ endpoints:
   - name: "Patchpal AI"
     type: "patchpal"
     url: "http://patchpal.usersys.redhat.com:9080/v1"
+    #timeout: 600
+    #retries: 10
+    #delay: 1000
+    #max_delay: 600000
+
+  - name: "llama.cpp vulkan simple"
+    url: "http://localhost:8811/v1/chat/completions"
+    type: "openai"
+    #no_context: false
 
   - name: "llama.cpp vulkan"
     url: "http://localhost:8811/v1/chat/completions"
     type: "openai"
-    model: "your favorite open weight open source coder model"
-    temperature: 0.7
-
-  - name: "llama.cpp vulkan no_context"
-    url: "http://localhost:8811/v1/chat/completions"
-    type: "openai"
-    model: "your favorite open weight open source coder model"
-    no_context: true
-
+    params:
+      # one query for each entry in the params list
+      - variant: "default"
+      - variant: "min_p"
+        temperature: 0.3
+        top_p: 1.0
+        top_k: 0
+        min_p: 0.9
+      - variant: "no_context"
+        no_context: true
+    
   - name: "Gemini 2.5 pro"
     url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
     type: "openai"
     model: "gemini-2.5-pro"
-    api_key_file: "~/.gemini-api-key"
-    reasoning_effort: "low"
+    api_key_file: "~/.gemini.api-key"
+    params:
+      - reasoning_effort: "high"
 ```
 
 ---
@@ -137,6 +153,64 @@ git diff --name-only --diff-filter=U
 
 > ✅ **Gemini supports a compatible OpenAI endpoint**  
 > ✅ **Models work with stock weights** – the prompt engineering simulates Patchpal's fine-tuned behavior.
+
+---
+
+## 📊 Benchmark Statistics
+
+The following statistics were generated using the `synthmerge_bench` tool on a C language dataset to evaluate model performance on conflict resolution tasks. These results may vary depending on prompt, context, and other variables. 
+
+**Accuracy** checks if the AI resolved conflict is an exact match including all spaces, tabs, and newlines.
+
+**Accuracy (aligned)** checks equality of whitespace patterns up until the first non-whitespace character, ignoring differences in lines without non-whitespace characters and whitespace variations after the first non-whitespace character (i.e. Python equivalence).
+
+**Accuracy (stripped)** compresses all whitespaces and newlines into a single space (i.e. C/C++/Rust/JavaScript equivalence).
+
+The probability that at least one of the three differnt PatchPal beams is exact (not ignoring  whitespace differences) is: 66.33% + 11.25% + 2.92% = 80.5%. This measurement used only new test data never exposed to the model during the fine tuning process.
+
+```
+# only the Beam 0 is comparable to the non Patchpal models
+Model: Patchpal AI #0 (Beam search 0)
+  Accuracy: 63.33% (715/1129)
+  Accuracy (aligned): 67.76% (765/1129) # might be duplicate with other beams
+  Accuracy (stripped): 71.12% (803/1129) # might be duplicate with other beams
+  Error Rate: 0.53% (6/1129) # might be duplicate with other beams
+
+# when Beam 0 is wrong, Beam 1 is right 11.25% of the time
+Model: Patchpal AI #1 (Beam search 1) of the time
+  Accuracy: 11.25% (127/1129)
+  Accuracy (aligned): 22.50% (254/1129) # might be duplicate with other beams
+  Accuracy (stripped): 33.92% (383/1129) # might be duplicate with other beams
+  Error Rate: 0.53% (6/1129)
+
+# when Beam 0 and Beam 1 are wrong, Beam 2 is right 2.92% of the time
+Model: Patchpal AI #2 (Beam search 2)
+  Accuracy: 2.92% (33/1129)
+  Accuracy (aligned): 15.50% (175/1129) # might be duplicate with other beams
+  Accuracy (stripped): 25.86% (292/1129) # might be duplicate with other beams
+  Error Rate: 0.62% (7/1129)
+
+Model: Gemini 2.5 pro (high) # reasoning_effort: high
+  Accuracy: 55.18% (623/1129)
+  Accuracy (aligned): 61.20% (691/1129)
+  Accuracy (stripped): 63.33% (715/1129)
+  Error Rate: 0.00% (0/1129)
+
+Model: Gemini 2.5 pro (low) # reasoning_effort: low
+  Accuracy: 51.28% (579/1129)
+  Accuracy (aligned): 55.54% (627/1129)
+  Accuracy (stripped): 58.10% (656/1129)
+  Error Rate: 0.18% (2/1129)
+
+# temperature: 0.3 top_k: 0 top_p: 1 min_p: 0.9
+# llama.cpp vulkan Q6_K -ctk q8_0 -ctv q8_0
+Model: Qwen3-Coder-30B-A3B-Instruct (top_p)
+Model: llama.cpp vulkan (min_p)
+  Accuracy: 43.84% (495/1129)
+  Accuracy (aligned): 48.89% (552/1129)
+  Accuracy (stripped): 52.52% (593/1129)
+  Error Rate: 0.62% (7/1129)
+```
 
 ---
 

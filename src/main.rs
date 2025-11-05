@@ -70,9 +70,8 @@ async fn main() -> Result<()> {
 
     // Resolve conflicts using AI
     let resolver = ConflictResolver::new(&config, git_diff);
-    let resolved_conflicts = resolver.resolve_conflicts(&conflicts).await?;
+    let resolved_conflicts = resolver.resolve_conflicts(&conflicts).await?.0;
 
-    // Apply resolved conflicts back to the repository
     git_utils.apply_resolved_conflicts(&resolved_conflicts)?;
 
     Ok(())

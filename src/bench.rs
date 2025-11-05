@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later OR AGPL-3.0-or-later
 // Copyright (C) 2025  Red Hat, Inc.
 
-use crate::config::Config;
+use crate::config::{Config, EndpointTypeConfig};
 use crate::conflict_resolver::{Conflict, ConflictResolver};
 use crate::git_utils::GitUtils;
 use anyhow::{Context, Result};
@@ -30,7 +30,9 @@ pub struct TestResult {
     pub duration: f64,
     pub tokens: Option<u64>,
     pub failed_patched_code: Option<String>,
-    pub error: Option<String>,
+    pub error: bool,
+    pub patch_commit_hash: String,
+    pub code_commit_hash: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -107,13 +109,14 @@ impl Bench {
         Ok(entries)
     }
 
-    pub fn save_checkpoint<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+    pub fn save_checkpoint<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let file = File::create(path.as_ref())?;
         let mut writer = csv::Writer::from_writer(file);
         for result in &self.results {
             writer.serialize(result)?;
         }
         writer.flush()?;
+        self.calculate_stats();
         Ok(())
     }
 
@@ -166,7 +169,7 @@ impl Bench {
                 .entry(model.clone())
                 .or_insert_with(Vec::new)
                 .push(result.duration);
-            if result.error.is_some() {
+            if result.error {
                 *model_errors.entry(model.clone()).or_insert(0) += 1;
             }
         }
@@ -291,6 +294,7 @@ impl Bench {
                 "Loaded {} existing results from checkpoint",
                 self.results.len()
             );
+            self.print_results();
         }
 
         for (i, entry) in entries.iter().enumerate() {
@@ -299,7 +303,9 @@ impl Bench {
                 continue;
             }
 
-            println!("Processing entry {} of {}...", i + 1, entries.len());
+            let processing_msg = format!("Processing entry {} of {}...", i + 1, entries.len());
+            log::info!("{}", processing_msg);
+            println!("{}", processing_msg);
 
             // Create conflict from test entry
             let conflict = self.create_conflict_from_entry(entry)?;
@@ -333,81 +339,133 @@ impl Bench {
             let resolver = ConflictResolver::new(config, git_diff);
 
             let resolved_conflicts = resolver.resolve_conflicts(&[conflict]).await;
-            let resolved_conflicts = match resolved_conflicts {
-                Ok(conflicts) => {
-                    if conflicts.is_empty() {
-                        let test_result = TestResult {
-                            entry_index: i,
-                            model: "error".to_string(),
-                            correct: false,
-                            correct_aligned: false,
-                            correct_stripped: false,
-                            duration: 0.0,
-                            tokens: None,
-                            failed_patched_code: None,
-                            error: Some("No conflicts resolved".to_string()),
-                        };
-                        self.results.push(test_result);
-                        continue;
-                    }
-                    conflicts
-                }
-                Err(e) => {
-                    let test_result = TestResult {
-                        entry_index: i,
-                        model: "error".to_string(),
-                        correct: false,
-                        correct_aligned: false,
-                        correct_stripped: false,
-                        duration: 0.0,
-                        tokens: None,
-                        failed_patched_code: None,
-                        error: Some(e.to_string()),
-                    };
-                    self.results.push(test_result);
-                    continue;
-                }
-            };
-            for resolved_conflict in resolved_conflicts {
-                let test_result = TestResult {
-                    entry_index: i,
-                    model: resolved_conflict.dedup.model,
-                    correct: resolved_conflict.dedup.resolved_version == entry.patched_code,
-                    correct_aligned: self.aligned(
-                        &resolved_conflict.dedup.resolved_version,
-                        &entry.patched_code,
-                    ),
-                    correct_stripped: self.stripped(
-                        &resolved_conflict.dedup.resolved_version,
-                        &entry.patched_code,
-                    ),
-                    duration: resolved_conflict.duration,
-                    tokens: resolved_conflict.total_tokens,
-                    failed_patched_code: if resolved_conflict.dedup.resolved_version
-                        == entry.patched_code
-                    {
-                        None
+            match resolved_conflicts {
+                Ok((resolved_conflicts, resolved_errors)) => {
+                    if resolved_conflicts.is_empty() {
+                        self.add_error_results_for_all_endpoints(config, i, entry);
                     } else {
-                        Some(resolved_conflict.dedup.resolved_version)
-                    },
-                    error: None,
-                };
-                self.results.push(test_result);
-            }
+                        for (model_name, error_count) in &resolved_errors.errors {
+                            let test_result = TestResult {
+                                entry_index: i,
+                                model: model_name.clone(),
+                                correct: false,
+                                correct_aligned: false,
+                                correct_stripped: false,
+                                duration: 0.0,
+                                tokens: None,
+                                failed_patched_code: None,
+                                error: true,
+                                patch_commit_hash: entry.patch_commit_hash.clone(),
+                                code_commit_hash: entry.code_commit_hash.clone(),
+                            };
+                            for _ in 0..*error_count {
+                                self.results.push(test_result.clone());
+                            }
+                        }
+                        for resolved_conflict in resolved_conflicts {
+                            let test_result = TestResult {
+                                entry_index: i,
+                                model: resolved_conflict.model,
+                                correct: resolved_conflict.resolved_version == entry.patched_code,
+                                correct_aligned: self.aligned(
+                                    &resolved_conflict.resolved_version,
+                                    &entry.patched_code,
+                                ),
+                                correct_stripped: self.stripped(
+                                    &resolved_conflict.resolved_version,
+                                    &entry.patched_code,
+                                ),
+                                duration: resolved_conflict.duration,
+                                tokens: resolved_conflict.total_tokens,
+                                failed_patched_code: if resolved_conflict.resolved_version
+                                    == entry.patched_code
+                                {
+                                    None
+                                } else {
+                                    Some(resolved_conflict.resolved_version)
+                                },
+                                error: false,
+                                patch_commit_hash: entry.patch_commit_hash.clone(),
+                                code_commit_hash: entry.code_commit_hash.clone(),
+                            };
+                            self.results.push(test_result);
+                        }
+                    }
+                }
+                Err(_e) => self.add_error_results_for_all_endpoints(config, i, entry),
+            };
 
             // Save checkpoint periodically
             if let Some(path) = checkpoint_path
                 && (i + 1) % checkpoint_interval == 0
+                && i + 1 < entries.len()
             {
                 println!("Saving checkpoint...");
                 self.save_checkpoint(path)?;
-                self.calculate_stats();
             }
         }
 
-        // Final calculation
-        self.calculate_stats();
+        // Save final checkpoint
+        if let Some(path) = checkpoint_path {
+            println!("Saving final checkpoint...");
+            self.save_checkpoint(path)?;
+        }
+
         Ok(())
+    }
+
+    fn add_error_results_for_all_endpoints(
+        &mut self,
+        config: &Config,
+        entry_index: usize,
+        entry: &TestEntry,
+    ) {
+        let mut model_names = Vec::new();
+        // Collect all model names from endpoints configuration
+        for endpoint in config.get_all_endpoints() {
+            match &endpoint.config {
+                EndpointTypeConfig::OpenAI { params, .. } => {
+                    if let Some(params) = params {
+                        for param in params.iter() {
+                            let variant = if let Some(variant) = &*param.variant {
+                                format!("{} ({})", endpoint.name, variant)
+                            } else {
+                                endpoint.name.clone()
+                            };
+                            model_names.push(variant);
+                        }
+                    } else {
+                        // No params, just the endpoint name
+                        model_names.push(endpoint.name.clone());
+                    }
+                }
+                EndpointTypeConfig::Patchpal { .. } => {
+                    // For patchpal, we have 3 variants (as per existing logic)
+                    for y in 0..3 {
+                        model_names.push(format!("{} #{}", endpoint.name, y));
+                    }
+                }
+            }
+        }
+
+        assert!(!model_names.is_empty());
+
+        for model_name in model_names {
+            let test_result = TestResult {
+                entry_index,
+                model: model_name,
+                correct: false,
+                correct_aligned: false,
+                correct_stripped: false,
+                duration: 0.0,
+                tokens: None,
+                failed_patched_code: None,
+                error: true,
+                patch_commit_hash: entry.patch_commit_hash.clone(),
+                code_commit_hash: entry.code_commit_hash.clone(),
+            };
+            self.results.push(test_result);
+        }
     }
 
     fn stripped(&self, resolved: &str, expected: &str) -> bool {
