@@ -6,6 +6,14 @@
 
 ---
 
+## 🎥 Demo
+
+> ![synthmerge-demo](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8.webm)
+> ![synthmerge-demo with ripgrep-edit](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-ripgrep-edit.webm)
+> ![synthmerge-demo with vim](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-vim.webm)
+
+---
+
 ## 🌟 Core Principles
 
 1. **Specialized AI Layer**  
@@ -129,17 +137,21 @@ endpoints:
 ## 🚀 Usage
 
 ```bash
-# Ensure Git is configured for diff3
+# Ensure Git is configured for diff3 conflict style
 git config merge.conflictStyle diff3
 
-# Attempt cherry-pick (will leave conflicts)
+# Attempt cherry-pick (will leave conflicts unresolved)
 git cherry-pick -x <commit>
 
 # Resolve conflicts with AI
 synthmerge
 
-# Review in your editor
+# Review synthmerge resolved conflicts in each unmerged file ...
 git diff --name-only --diff-filter=U
+
+# ... or linearized in a single buffer to edit with ripgrep-edit
+ripgrep-edit -E vim -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
+ripgrep-edit -E emacsclient -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
 ```
 
 ---
@@ -203,7 +215,7 @@ Model: Gemini 2.5 pro (low) # reasoning_effort: low
   Error Rate: 0.18% (2/1129)
 
 # temperature: 0.7 top_k: 20 top_p: 0.8 min_p: 0
-# llama.cpp vulkan Q6_K -ctk q8_0 -ctv q8_0
+# llama.cpp vulkan Q6_K
 Model: Qwen3-Coder-30B-A3B-Instruct (default)
   Accuracy: 48.54% (548/1129)
   Accuracy (aligned): 52.97% (598/1129)
@@ -211,7 +223,7 @@ Model: Qwen3-Coder-30B-A3B-Instruct (default)
   Error Rate: 0.00% (0/1129)
 
 # temperature: 0.7 top_k: 20 top_p: 0.8 min_p: 0
-# llama.cpp vulkan Q6_K -ctk q8_0 -ctv q8_0
+# llama.cpp vulkan Q6_K
 Model: Qwen3-Coder-30B-A3B-Instruct (no_context)
   Accuracy: 45.88% (518/1129)
   Accuracy (aligned): 50.13% (566/1129)
