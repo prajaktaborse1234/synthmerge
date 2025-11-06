@@ -308,8 +308,6 @@ impl<'a> ConflictResolver<'a> {
         format!(
             r#"Apply the PATCH between {}{} to the CODE between {}{}.
 
-Write the reasoning about the PATCH focusing only on the modifications done in the + or - lines of the PATCH and don't make other modifications to the CODE.
-
 FINALLY write the final PATCHED CODE between {}{} instead of markdown fences.
 
 Rewrite the {} lines after {} and the {} lines before {} exactly the same, including all empty lines."#,

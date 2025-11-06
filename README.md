@@ -176,14 +176,14 @@ Model: Patchpal AI #0 (Beam search 0)
   Accuracy (stripped): 71.12% (803/1129) # might be duplicate with other beams
   Error Rate: 0.53% (6/1129) # might be duplicate with other beams
 
-# when Beam 0 is wrong, Beam 1 is right 11.25% of the time
+# if Beam 0 is wrong, Beam 1 is right 11.25% of the time
 Model: Patchpal AI #1 (Beam search 1) of the time
   Accuracy: 11.25% (127/1129)
   Accuracy (aligned): 22.50% (254/1129) # might be duplicate with other beams
   Accuracy (stripped): 33.92% (383/1129) # might be duplicate with other beams
   Error Rate: 0.53% (6/1129)
 
-# when Beam 0 and Beam 1 are wrong, Beam 2 is right 2.92% of the time
+# if Beam 0 and Beam 1 are wrong, Beam 2 is right 2.92% of the time
 Model: Patchpal AI #2 (Beam search 2)
   Accuracy: 2.92% (33/1129)
   Accuracy (aligned): 15.50% (175/1129) # might be duplicate with other beams
@@ -192,24 +192,31 @@ Model: Patchpal AI #2 (Beam search 2)
 
 Model: Gemini 2.5 pro (high) # reasoning_effort: high
   Accuracy: 55.18% (623/1129)
-  Accuracy (aligned): 61.20% (691/1129)
-  Accuracy (stripped): 63.33% (715/1129)
+  Accuracy (aligned): 60.67% (685/1129)
+  Accuracy (stripped): 63.42% (716/1129)
   Error Rate: 0.00% (0/1129)
 
 Model: Gemini 2.5 pro (low) # reasoning_effort: low
-  Accuracy: 51.28% (579/1129)
-  Accuracy (aligned): 55.54% (627/1129)
-  Accuracy (stripped): 58.10% (656/1129)
+  Accuracy: 51.64% (583/1129)
+  Accuracy (aligned): 56.78% (641/1129)
+  Accuracy (stripped): 58.90% (665/1129)
   Error Rate: 0.18% (2/1129)
 
-# temperature: 0.3 top_k: 0 top_p: 1 min_p: 0.9
+# temperature: 0.7 top_k: 20 top_p: 0.8 min_p: 0
 # llama.cpp vulkan Q6_K -ctk q8_0 -ctv q8_0
-Model: Qwen3-Coder-30B-A3B-Instruct (top_p)
-Model: llama.cpp vulkan (min_p)
-  Accuracy: 43.84% (495/1129)
-  Accuracy (aligned): 48.89% (552/1129)
-  Accuracy (stripped): 52.52% (593/1129)
-  Error Rate: 0.62% (7/1129)
+Model: Qwen3-Coder-30B-A3B-Instruct (default)
+  Accuracy: 48.54% (548/1129)
+  Accuracy (aligned): 52.97% (598/1129)
+  Accuracy (stripped): 55.89% (631/1129)
+  Error Rate: 0.00% (0/1129)
+
+# temperature: 0.7 top_k: 20 top_p: 0.8 min_p: 0
+# llama.cpp vulkan Q6_K -ctk q8_0 -ctv q8_0
+Model: Qwen3-Coder-30B-A3B-Instruct (no_context)
+  Accuracy: 45.88% (518/1129)
+  Accuracy (aligned): 50.13% (566/1129)
+  Accuracy (stripped): 53.59% (605/1129)
+  Error Rate: 0.00% (0/1129)
 ```
 
 ---
