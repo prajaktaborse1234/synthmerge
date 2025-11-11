@@ -10,6 +10,8 @@ use std::process::Command;
 pub struct GitUtils {
     context_lines: u32,
     in_rebase: bool,
+    git_root: String,
+    git_dir: String,
 }
 
 impl GitUtils {
@@ -23,9 +25,13 @@ impl GitUtils {
     const END_MARKER: &str = ">>>>>>>";
 
     pub fn new(context_lines: u32) -> Self {
+        let git_root = Self::get_git_root_uncached().unwrap_or_default();
+        let git_dir = Self::get_git_dir_uncached().unwrap_or_default();
         GitUtils {
             context_lines,
             in_rebase: false,
+            git_root,
+            git_dir,
         }
     }
 
@@ -401,7 +407,7 @@ impl GitUtils {
     }
 
     /// Get the git root directory
-    fn get_git_root(&self) -> Result<String> {
+    fn get_git_root_uncached() -> Result<String> {
         let output = Command::new("git")
             .args(["rev-parse", "--show-toplevel"])
             .output()
@@ -419,7 +425,7 @@ impl GitUtils {
     }
 
     /// Get the git directory
-    fn get_git_dir(&self) -> Result<String> {
+    fn get_git_dir_uncached() -> Result<String> {
         let output = Command::new("git")
             .args(["rev-parse", "--git-dir"])
             .output()
@@ -438,7 +444,7 @@ impl GitUtils {
 
     /// Update the git merge message to include Assisted-by line
     fn update_merge_message(&self) -> Result<()> {
-        let git_dir = self.get_git_dir()?;
+        let git_dir = &self.git_dir;
 
         let merge_msg_path = if self.in_rebase {
             format!("{}/{}", git_dir, Self::REBASE_MESSAGE_FILE)
@@ -509,7 +515,7 @@ impl GitUtils {
 
     /// Check if we are currently in a cherry-pick, merge, or rebase state
     pub fn find_commit_hash(&mut self) -> Result<Option<String>> {
-        let git_dir = self.get_git_dir()?;
+        let git_dir = &self.git_dir;
 
         // Check for cherry-pick, merge, and rebase HEAD files
         let mut head_files = Vec::new();
