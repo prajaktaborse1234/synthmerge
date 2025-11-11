@@ -96,7 +96,7 @@ impl GitUtils {
 
         let mut conflicts = Vec::new();
         let re = Regex::new(&format!(
-            r"(?ms)(^{} HEAD.*?^{} .*?^{}\n.*?^{}.*?\n)",
+            r"(?ms)(^{} .*?^{} .*?^{}\n.*?^{}.*?\n)",
             Self::create_head_marker(marker_size),
             Self::create_base_marker(marker_size)
                 .chars()
@@ -140,8 +140,10 @@ impl GitUtils {
 
         let local_start = conflict_lines
             .iter()
-            .position(|&line| line == format!("{} HEAD\n", Self::create_head_marker(marker_size)))
-            .context("Failed to find HEAD marker")?;
+            .position(|&line| {
+                line.starts_with(&format!("{} ", Self::create_head_marker(marker_size)))
+            })
+            .context("Failed to find head marker")?;
 
         let base_start = conflict_lines
             .iter()
