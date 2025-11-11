@@ -5,6 +5,7 @@ use crate::conflict_resolver::{Conflict, ResolvedConflict};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub struct GitUtils {
@@ -86,7 +87,8 @@ impl GitUtils {
 
     /// Parse conflicts from a specific file
     fn parse_conflict_from_file(&self, file_path: &str) -> Result<Vec<Conflict>> {
-        let content = fs::read_to_string(file_path)
+        let path = Path::new(&self.git_root).join(file_path);
+        let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read file: {}", file_path))?;
 
         // Get the marker size for this file from gitattributes
@@ -312,9 +314,9 @@ impl GitUtils {
             );
 
             // Read the file
-            let mut content = fs::read_to_string(&conflict.conflict.file_path)
+            let path = Path::new(&self.git_root).join(&conflict.conflict.file_path);
+            let mut content = fs::read_to_string(&path)
                 .with_context(|| format!("Failed to read file: {}", conflict.conflict.file_path))?;
-
             // Split content into lines
             let mut lines: Vec<String> = content
                 .split_inclusive('\n')
@@ -355,7 +357,7 @@ impl GitUtils {
             content = lines.join("");
 
             // Write back to file
-            fs::write(&conflict.conflict.file_path, content).with_context(|| {
+            fs::write(&path, content).with_context(|| {
                 format!("Failed to write file: {}", conflict.conflict.file_path)
             })?;
         }
@@ -521,9 +523,9 @@ impl GitUtils {
         let git_dir = &self.git_dir;
 
         let merge_msg_path = if self.in_rebase {
-            format!("{}/{}", git_dir, Self::REBASE_MESSAGE_FILE)
+            Path::new(&git_dir).join(Self::REBASE_MESSAGE_FILE)
         } else {
-            format!("{}/{}", git_dir, Self::MERGE_MSG_FILE)
+            Path::new(&git_dir).join(Self::MERGE_MSG_FILE)
         };
         let merge_msg_content = match fs::read_to_string(&merge_msg_path) {
             Ok(content) => content,
@@ -579,7 +581,10 @@ impl GitUtils {
 
         let updated_content = lines.join("");
         fs::write(&merge_msg_path, updated_content).with_context(|| {
-            format!("Failed to write updated merge message: {}", merge_msg_path)
+            format!(
+                "Failed to write updated merge message: {}",
+                merge_msg_path.display()
+            )
         })?;
 
         println!("Added \"{}\"", Self::ASSISTED_BY_LINE);
@@ -594,15 +599,18 @@ impl GitUtils {
         // Check for cherry-pick, merge, and rebase HEAD files
         let mut head_files = Vec::new();
         for &prefix in &["CHERRY_PICK", "MERGE", "REBASE", "REVERT"] {
-            head_files.push((prefix, format!("{}/{}_{}", git_dir, prefix, "HEAD")));
+            head_files.push((
+                prefix,
+                Path::new(&git_dir).join(format!("{}_{}", prefix, "HEAD")),
+            ));
         }
 
         let mut content: Option<String> = None;
-        let mut latest_path: Option<(&str, String)> = None;
+        let mut latest_path: Option<(&str, PathBuf)> = None;
         let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
 
         for (name, path) in head_files {
-            if std::path::Path::new(&path).exists() {
+            if Path::new(&path).exists() {
                 let metadata = std::fs::metadata(&path)
                     .with_context(|| format!("Failed to get metadata for {}", name))?;
                 let file_time = metadata
@@ -626,8 +634,8 @@ impl GitUtils {
             // Check if it's a rebase
             if name == "REBASE" {
                 // Also check if the rebase message file exists
-                let rebase_msg_path = format!("{}/{}", git_dir, Self::REBASE_MESSAGE_FILE);
-                if std::path::Path::new(&rebase_msg_path).exists() {
+                let rebase_msg_path = Path::new(&git_dir).join(Self::REBASE_MESSAGE_FILE);
+                if rebase_msg_path.exists() {
                     self.in_rebase = true;
                 }
             }
