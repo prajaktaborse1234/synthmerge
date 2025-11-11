@@ -438,12 +438,12 @@ impl GitUtils {
 
     /// Update the git merge message to include Assisted-by line
     fn update_merge_message(&self) -> Result<()> {
-        let git_root = self.get_git_root()?;
+        let git_dir = self.get_git_dir()?;
 
         let merge_msg_path = if self.in_rebase {
-            format!("{}/.git/{}", git_root, Self::REBASE_MESSAGE_FILE)
+            format!("{}/{}", git_dir, Self::REBASE_MESSAGE_FILE)
         } else {
-            format!("{}/.git/{}", git_root, Self::MERGE_MSG_FILE)
+            format!("{}/{}", git_dir, Self::MERGE_MSG_FILE)
         };
         let merge_msg_content = match fs::read_to_string(&merge_msg_path) {
             Ok(content) => content,
