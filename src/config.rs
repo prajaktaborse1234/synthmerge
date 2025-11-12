@@ -70,7 +70,7 @@ pub struct OpenAIParams {
     #[serde(default)]
     pub temperature: Option<f64>,
     #[serde(default)]
-    pub top_k: Option<i32>,
+    pub top_k: Option<u32>,
     #[serde(default)]
     pub top_p: Option<f64>,
     #[serde(default)]
