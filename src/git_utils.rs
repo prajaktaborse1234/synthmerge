@@ -157,6 +157,16 @@ impl GitUtils {
             .position(|&line| line == format!("{}\n", Self::create_conflict_marker(marker_size)))
             .context("Failed to find conflict marker")?;
 
+        let synthmerge_start = conflict_lines
+            .iter()
+            .position(|&line| {
+                line.starts_with(&format!(
+                    "{} synthmerge: ",
+                    Self::create_base_marker(marker_size)
+                ))
+            })
+            .unwrap_or(remote_start);
+
         let remote_end = conflict_lines
             .iter()
             .position(|&line| line.starts_with(&Self::create_end_marker(marker_size)))
@@ -167,7 +177,7 @@ impl GitUtils {
         }
 
         let local_lines: Vec<&str> = conflict_lines[local_start + 1..base_start].to_vec();
-        let base_lines: Vec<&str> = conflict_lines[base_start + 1..remote_start].to_vec();
+        let base_lines: Vec<&str> = conflict_lines[base_start + 1..synthmerge_start].to_vec();
         let remote_lines: Vec<&str> = conflict_lines[remote_start + 1..remote_end].to_vec();
 
         let content_lines: Vec<&str> = content.split_inclusive('\n').collect();
