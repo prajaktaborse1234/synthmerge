@@ -12,49 +12,49 @@ use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TestEntry {
-    pub patch: String,
-    pub code: String,
-    pub patch_commit_hash: String,
-    pub code_commit_hash: String,
-    pub patched_code: String,
-    pub filename: String,
+    patch: String,
+    code: String,
+    patch_commit_hash: String,
+    code_commit_hash: String,
+    patched_code: String,
+    filename: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TestResult {
-    pub entry_index: usize,
-    pub model: String,
-    pub correct: bool,
-    pub correct_aligned: bool,
-    pub correct_stripped: bool,
-    pub duration: f64,
-    pub tokens: Option<u64>,
-    pub failed_patched_code: Option<String>,
-    pub error: bool,
-    pub patch_commit_hash: String,
-    pub code_commit_hash: String,
+struct TestResult {
+    entry_index: usize,
+    model: String,
+    correct: bool,
+    correct_aligned: bool,
+    correct_stripped: bool,
+    duration: f64,
+    tokens: Option<u64>,
+    failed_patched_code: Option<String>,
+    error: bool,
+    patch_commit_hash: String,
+    code_commit_hash: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ModelStats {
-    pub total: usize,
-    pub correct: usize,
-    pub correct_aligned: usize,
-    pub correct_stripped: usize,
-    pub error: usize,
-    pub accuracy: f64,
-    pub accuracy_aligned: f64,
-    pub accuracy_stripped: f64,
-    pub error_rate: f64,
-    pub avg_tokens: f64,
-    pub avg_duration: f64,
+struct ModelStats {
+    total: usize,
+    correct: usize,
+    correct_aligned: usize,
+    correct_stripped: usize,
+    error: usize,
+    accuracy: f64,
+    accuracy_aligned: f64,
+    accuracy_stripped: f64,
+    error_rate: f64,
+    avg_tokens: f64,
+    avg_duration: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Bench {
-    pub results: Vec<TestResult>,
-    pub model_stats: HashMap<String, ModelStats>,
-    pub git_diffs: HashMap<String, String>,
+    results: Vec<TestResult>,
+    model_stats: HashMap<String, ModelStats>,
+    git_diffs: HashMap<String, String>,
 }
 
 impl Default for Bench {
@@ -109,7 +109,7 @@ impl Bench {
         Ok(entries)
     }
 
-    pub fn save_checkpoint<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    fn save_checkpoint<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let file = File::create(path.as_ref())?;
         let mut writer = csv::Writer::from_writer(file);
         for result in &self.results {
@@ -120,7 +120,7 @@ impl Bench {
         Ok(())
     }
 
-    pub fn load_checkpoint<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+    fn load_checkpoint<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         if !path.as_ref().exists() {
             return Ok(());
         }
@@ -136,7 +136,7 @@ impl Bench {
         Ok(())
     }
 
-    pub fn calculate_stats(&mut self) {
+    fn calculate_stats(&mut self) {
         // Initialize stats for all models
         let mut model_totals = HashMap::new();
         let mut model_correct = HashMap::new();

@@ -41,12 +41,12 @@ pub struct ConflictResolver<'a> {
 }
 
 impl<'a> ConflictResolver<'a> {
-    pub const DIFF_START: &'static str = "<|diff_start|>";
-    pub const DIFF_END: &'static str = "<|diff_end|>";
-    pub const PATCH_START: &'static str = "<|patch_start|>";
-    pub const PATCH_END: &'static str = "<|patch_end|>";
-    pub const CODE_START: &'static str = "<|code_start|>";
-    pub const CODE_END: &'static str = "<|code_end|>";
+    const DIFF_START: &'static str = "<|diff_start|>";
+    const DIFF_END: &'static str = "<|diff_end|>";
+    const PATCH_START: &'static str = "<|patch_start|>";
+    const PATCH_END: &'static str = "<|patch_end|>";
+    const CODE_START: &'static str = "<|code_start|>";
+    const CODE_END: &'static str = "<|code_end|>";
     pub const PATCHED_CODE_START: &'static str = "<|patched_code_start|>";
     pub const PATCHED_CODE_END: &'static str = "<|patched_code_end|>";
     pub fn new(config: &'a Config, git_diff: Option<String>) -> Self {
@@ -295,7 +295,7 @@ impl<'a> ConflictResolver<'a> {
         })
     }
 
-    pub fn create_git_diff(&self, conflict: &Conflict) -> Option<String> {
+    fn create_git_diff(&self, conflict: &Conflict) -> Option<String> {
         if let Some(git_diff) = &self.git_diff
             && git_diff.contains(&conflict.file_path)
         {

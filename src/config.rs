@@ -8,7 +8,7 @@ use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub endpoints: Vec<EndpointConfig>,
+    endpoints: Vec<EndpointConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
