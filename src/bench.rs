@@ -133,6 +133,8 @@ impl Bench {
             self.results.push(result);
         }
 
+        self.calculate_stats();
+
         Ok(())
     }
 
@@ -294,9 +296,9 @@ impl Bench {
                 "Loaded {} existing results from checkpoint",
                 self.results.len()
             );
-            self.print_results();
         }
 
+        let mut modified = false;
         for (i, entry) in entries.iter().enumerate() {
             // Skip entries that are already processed
             if self.results.iter().any(|r| r.entry_index == i) {
@@ -395,10 +397,10 @@ impl Bench {
                 Err(_e) => self.add_error_results_for_all_endpoints(config, i, entry),
             };
 
+            modified = true;
             // Save checkpoint periodically
             if let Some(path) = checkpoint_path
                 && (i + 1) % checkpoint_interval == 0
-                && i + 1 < entries.len()
             {
                 println!("Saving checkpoint...");
                 self.save_checkpoint(path)?;
@@ -406,7 +408,7 @@ impl Bench {
         }
 
         // Save final checkpoint
-        if let Some(path) = checkpoint_path {
+        if modified && let Some(path) = checkpoint_path {
             println!("Saving final checkpoint...");
             self.save_checkpoint(path)?;
         }
