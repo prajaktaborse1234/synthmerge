@@ -25,7 +25,7 @@ struct Args {
     config_path: String,
 
     /// Number of context lines to include around conflicts
-    #[arg(long = "context-lines", default_value = "3", value_parser = clap::value_parser!(u32).range(1..))]
+    #[arg(long = "context-lines", default_value = "3", value_parser = clap::value_parser!(u32).range(0..))]
     context_lines: u32,
 }
 

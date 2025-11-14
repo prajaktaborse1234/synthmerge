@@ -349,12 +349,14 @@ Rewrite the {nr_head_context_lines} lines after {code_start} and the {nr_tail_co
         let input = InternedInput::new(&base[..], &remote[..]);
         let mut diff = Diff::compute(Algorithm::Histogram, &input);
         diff.postprocess_lines(&input);
-        diff.unified_diff(
-            &BasicLineDiffPrinter(&input.interner),
-            UnifiedDiffConfig::default(),
-            &input,
-        )
-        .to_string()
+        let mut config = UnifiedDiffConfig::default();
+        config.context_len(
+            conflict
+                .nr_head_context_lines
+                .max(conflict.nr_tail_context_lines) as u32,
+        );
+        diff.unified_diff(&BasicLineDiffPrinter(&input.interner), config, &input)
+            .to_string()
     }
 
     fn create_code(&self, conflict: &Conflict) -> String {
