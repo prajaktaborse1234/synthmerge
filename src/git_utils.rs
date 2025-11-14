@@ -688,7 +688,7 @@ impl GitUtils {
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let lines: Vec<&str> = stdout.lines().collect();
+        let lines: Vec<&str> = stdout.split_inclusive('\n').collect();
         let mut result_lines = Vec::new();
         let mut include_line = true;
 
@@ -704,7 +704,7 @@ impl GitUtils {
             }
         }
 
-        Ok(Some(result_lines.join("\n")))
+        Ok(Some(result_lines.join("")))
     }
 }
 

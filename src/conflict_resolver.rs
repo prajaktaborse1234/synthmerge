@@ -283,8 +283,8 @@ impl<'a> ConflictResolver<'a> {
                 r#"The PATCH originates from the DIFF between {diff_start}{diff_end}.
 
 {diff_start}
-{s}
-{diff_end}"#,
+{s}{diff_end}
+"#,
                 diff_start = Self::DIFF_START,
                 diff_end = Self::DIFF_END,
             )
