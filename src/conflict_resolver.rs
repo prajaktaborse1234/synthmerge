@@ -85,7 +85,6 @@ impl<'a> ConflictResolver<'a> {
             let code = self.create_code(conflict);
             let message = self.create_message(conflict);
             let git_diff = self.create_git_diff(conflict);
-            log::info!("Message:\n{}", message);
 
             // Try to resolve with all endpoints in parallel
             let mut futures = Vec::new();

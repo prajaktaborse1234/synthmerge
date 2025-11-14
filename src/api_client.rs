@@ -104,7 +104,9 @@ impl ApiClient {
             } else {
                 request.prompt.clone()
             };
+
             log::debug!("Prompt:\n{}", prompt);
+            log::info!("Message:\n{}", request.message);
 
             let mut payload = serde_json::json!({
                 "model": model,
