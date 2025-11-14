@@ -83,7 +83,7 @@ impl<'a> ConflictResolver<'a> {
             let prompt = self.create_prompt(conflict);
             let patch = self.create_patch(conflict);
             let code = self.create_code(conflict);
-            let message = self.create_message(conflict);
+            let message = self.create_message(&patch, &code);
             let git_diff = self.create_git_diff(conflict);
 
             // Try to resolve with all endpoints in parallel
@@ -319,7 +319,7 @@ Rewrite the {nr_head_context_lines} lines after {code_start} and the {nr_tail_co
         )
     }
 
-    fn create_message(&self, conflict: &Conflict) -> String {
+    fn create_message(&self, patch: &String, code: &String) -> String {
         format!(
             r#"{patch_start}
 {patch}{patch_end}
@@ -328,10 +328,10 @@ Rewrite the {nr_head_context_lines} lines after {code_start} and the {nr_tail_co
 {code}{code_end}
 "#,
             patch_start = Self::PATCH_START,
-            patch = self.create_patch(conflict),
+            patch = patch,
             patch_end = Self::PATCH_END,
             code_start = Self::CODE_START,
-            code = self.create_code(conflict),
+            code = code,
             code_end = Self::CODE_END,
         )
     }
