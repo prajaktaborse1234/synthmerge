@@ -539,11 +539,13 @@ impl Bench {
                 }
                 line_count = 0;
                 continue;
+            } else if let Some(line) = line.strip_prefix(' ') {
+                base_lines.push(line.to_string());
+                remote_lines.push(line.to_string());
+                line_count += 1;
+                continue;
             }
-
-            base_lines.push(line.to_string());
-            remote_lines.push(line.to_string());
-            line_count += 1;
+            panic!("malformed patch: {:?}", entry.patch);
         }
         let nr_tail_context_lines = line_count;
         let base = base_lines.join("");
