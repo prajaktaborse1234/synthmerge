@@ -55,6 +55,7 @@ pub struct Bench {
     results: Vec<TestResult>,
     model_stats: HashMap<String, ModelStats>,
     git_diffs: HashMap<String, String>,
+    line_number_re: regex::Regex,
 }
 
 impl Default for Bench {
@@ -64,11 +65,15 @@ impl Default for Bench {
 }
 
 impl Bench {
+    fn line_number_regex() -> regex::Regex {
+        regex::Regex::new(r"^@@ -\d+,\d+ \+\d+,\d+ @@").unwrap()
+    }
     pub fn new() -> Self {
         Bench {
             results: Vec::new(),
             model_stats: HashMap::new(),
             git_diffs: HashMap::new(),
+            line_number_re: Self::line_number_regex(),
         }
     }
 
@@ -525,9 +530,8 @@ impl Bench {
         let mut nr_head_context_lines = 0;
         let mut found_first_change = false;
         let mut line_count = 0;
-        let line_number_re = regex::Regex::new(r"^@@ -\d+,\d+ \+\d+,\d+ @@").unwrap();
         for line in entry.patch.split_inclusive('\n') {
-            if line_number_re.is_match(line) {
+            if self.line_number_re.is_match(line) {
                 continue;
             }
             if let Some(line) = line.strip_prefix('+') {
