@@ -7,6 +7,7 @@ readme = "README.md"
 repository = "https://gitlab.com/aarcange/synthmerge"
 license = "GPL-3.0-or-later OR AGPL-3.0-or-later"
 keywords = ["ai", "git", "mergetool", "conflict-resolution", "llm", "code-merge", "cherry-pick", "patch", "diff3", "ai-assisted-development"]
+default-run = "synthmerge"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
