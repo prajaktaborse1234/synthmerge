@@ -189,6 +189,52 @@ impl GitUtils {
         Ok(conflicts)
     }
 
+    fn gen_context(
+        &self,
+        conflict_lines: &[&str],
+        content_lines: &[&str],
+        start_line: usize,
+        marker_size: usize,
+        mode: ConflictMarkerMode,
+    ) -> Result<(usize, usize, String, String)> {
+        let head_context_end = (start_line.saturating_sub(1)).max(0);
+        let head_context_start = (head_context_end
+            .saturating_sub(self.context_lines.code_context_lines as usize))
+        .max(0);
+        let nr_head_context_lines = head_context_end - head_context_start;
+        let head_content_lines = content_lines[..start_line].to_vec();
+        let head_content_lines = Self::remove_conflict_markers(
+            head_content_lines[..head_context_end].to_vec(),
+            marker_size,
+            mode,
+        )?;
+        let head_context_lines = head_content_lines[head_content_lines
+            .len()
+            .saturating_sub(self.context_lines.code_context_lines as usize)
+            .max(0)..]
+            .to_vec();
+
+        let tail_context_start = (start_line + conflict_lines.len() - 1).min(content_lines.len());
+        let tail_context_end = (tail_context_start
+            + self.context_lines.code_context_lines as usize)
+            .min(content_lines.len());
+        let nr_tail_context_lines = tail_context_end - tail_context_start;
+        let tail_content_lines = content_lines[start_line + conflict_lines.len() - 1..].to_vec();
+        let tail_content_lines =
+            Self::remove_conflict_markers(tail_content_lines, marker_size, mode)?;
+        let tail_context_lines = tail_content_lines[..tail_content_lines
+            .len()
+            .min(self.context_lines.code_context_lines as usize)]
+            .to_vec();
+
+        Ok((
+            nr_head_context_lines,
+            nr_tail_context_lines,
+            head_context_lines.join(""),
+            tail_context_lines.join(""),
+        ))
+    }
+
     /// Parse a conflict block into structured data
     fn parse_conflict_text(
         &self,
@@ -252,46 +298,22 @@ impl GitUtils {
 
         let content_lines: Vec<&str> = content.split_inclusive('\n').collect();
 
-        let head_context_end = (start_line.saturating_sub(1)).max(0);
-        let head_context_start = (head_context_end
-            .saturating_sub(self.context_lines.code_context_lines as usize))
-        .max(0);
-        let nr_head_context_lines = head_context_end - head_context_start;
-        let head_content_lines = content_lines[..start_line].to_vec();
-        let head_content_lines = Self::remove_conflict_markers(
-            head_content_lines[..head_context_end].to_vec(),
-            marker_size,
-            ConflictMarkerMode::Local,
-        )?;
-        let head_context_lines = head_content_lines[head_content_lines
-            .len()
-            .saturating_sub(self.context_lines.code_context_lines as usize)
-            .max(0)..]
-            .to_vec();
-
-        let tail_context_start = (start_line + conflict_lines.len() - 1).min(content_lines.len());
-        let tail_context_end = (tail_context_start
-            + self.context_lines.code_context_lines as usize)
-            .min(content_lines.len());
-        let nr_tail_context_lines = tail_context_end - tail_context_start;
-        let tail_content_lines = content_lines[start_line + conflict_lines.len() - 1..].to_vec();
-        let tail_content_lines = Self::remove_conflict_markers(
-            tail_content_lines,
-            marker_size,
-            ConflictMarkerMode::Local,
-        )?;
-        let tail_context_lines = tail_content_lines[..tail_content_lines
-            .len()
-            .min(self.context_lines.code_context_lines as usize)]
-            .to_vec();
+        let (nr_head_context_lines, nr_tail_context_lines, head_context, tail_context) = self
+            .gen_context(
+                &conflict_lines,
+                &content_lines,
+                start_line,
+                marker_size,
+                ConflictMarkerMode::Local,
+            )?;
 
         Ok(Conflict {
             file_path: file_path.to_string(),
             local: local_lines.join(""),
             base: base_lines.join(""),
             remote: remote_lines.join(""),
-            head_context: head_context_lines.join(""),
-            tail_context: tail_context_lines.join(""),
+            head_context,
+            tail_context,
             start_line,
             remote_end, // append new AI results at the end
             nr_head_context_lines,

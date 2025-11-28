@@ -243,23 +243,23 @@ impl<'a> ConflictResolver<'a> {
                             &resolved_string[..conflict.head_context.len()],
                             1,
                         );
-                        log::trace!("HeadContextDiff: {}", diff);
+                        log::trace!("HeadContextDiff:\n{}", diff);
                         *resolver_errors.errors.entry(model).or_insert(0) += 1;
 
                         continue;
                     }
-                    let tail_context = &format!("\n{}", &conflict.tail_context);
-                    if !resolved_string.ends_with(tail_context) {
+                    let leading_tail_context = &format!("\n{}", &conflict.tail_context);
+                    if !resolved_string.ends_with(leading_tail_context) {
                         log::warn!("Skipping {} - doesn't end with tail context", model);
                         let diff = ConflictResolver::create_diff(
                             &resolved_string[resolved_string
                                 .len()
-                                .saturating_sub(tail_context.len())
+                                .saturating_sub(leading_tail_context.len())
                                 .max(0)..],
-                            tail_context,
+                            leading_tail_context,
                             1,
                         );
-                        log::trace!("TailContextDiff: {}", diff);
+                        log::trace!("TailContextDiff:\n{}", diff);
                         *resolver_errors.errors.entry(model).or_insert(0) += 1;
                         continue;
                     }
@@ -272,6 +272,7 @@ impl<'a> ConflictResolver<'a> {
                             "Skipping {} - resolved content is not newline terminated",
                             model
                         );
+                        log::trace!("ResolvedContent:\n{}", resolved_content);
                         *resolver_errors.errors.entry(model).or_insert(0) += 1;
                         continue;
                     }
