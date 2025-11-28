@@ -4,6 +4,9 @@
 use crate::config::{EndpointConfig, EndpointTypeConfig, OpenAIParams};
 use crate::conflict_resolver::ConflictResolver;
 use anyhow::{Context, Result};
+use reqwest::Certificate;
+use std::fs::File;
+use std::io::Read;
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -31,15 +34,36 @@ impl ApiClient {
     pub fn new(endpoint: EndpointConfig) -> Self {
         let client = Self::create_client(&endpoint);
 
-        ApiClient { endpoint, client }
+        ApiClient {
+            endpoint,
+            client: client.expect("Failed to create client"),
+        }
     }
 
-    fn create_client(endpoint: &EndpointConfig) -> reqwest::Client {
-        reqwest::Client::builder()
+    fn create_client(endpoint: &EndpointConfig) -> Result<reqwest::Client> {
+        let mut builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(endpoint.timeout))
-            .tcp_keepalive(Duration::from_secs(10))
+            .tcp_keepalive(Duration::from_secs(10));
+
+        // Add root certificate if specified
+        if let Some(cert_path) = &endpoint.root_certificate_pem {
+            let cert_path = shellexpand::full(cert_path)?;
+            let mut buf = Vec::new();
+            File::open(cert_path.as_ref())
+                .and_then(|mut file| file.read_to_end(&mut buf))
+                .map_err(|e| {
+                    anyhow::anyhow!("Failed to read certificate file {}: {}", cert_path, e)
+                })?;
+            let cert = Certificate::from_pem(&buf).map_err(|e| {
+                anyhow::anyhow!("Failed to parse certificate from {}: {}", cert_path, e)
+            })?;
+            builder = builder.add_root_certificate(cert);
+            log::trace!("Root certificate loaded successfully from {}", cert_path);
+        }
+
+        builder
             .build()
-            .unwrap()
+            .map_err(|e| anyhow::anyhow!("Failed to build client: {}", e))
     }
 
     /// Query the AI endpoint with the given prompt

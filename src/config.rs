@@ -23,6 +23,7 @@ pub struct EndpointConfig {
     pub delay: u64,
     #[serde(default = "default_max_delay")]
     pub max_delay: u64,
+    pub root_certificate_pem: Option<String>,
     #[serde(flatten)]
     pub config: EndpointTypeConfig,
 }
