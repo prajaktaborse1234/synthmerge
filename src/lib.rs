@@ -3,6 +3,7 @@
 
 mod api_client;
 pub mod bench;
+pub mod bench_args;
 pub mod config;
 pub mod conflict_resolver;
 pub mod git_utils;

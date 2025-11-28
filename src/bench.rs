@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later OR AGPL-3.0-or-later
 // Copyright (C) 2025  Red Hat, Inc.
 
+use crate::bench_args::Args;
 use crate::config::{Config, EndpointTypeConfig};
 use crate::conflict_resolver::{Conflict, ConflictResolver};
 use crate::git_utils::{ContextLines, GitUtils};
@@ -114,23 +115,23 @@ impl Bench {
         Ok(entries)
     }
 
-    fn save_checkpoint<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
-        let file = File::create(path.as_ref())?;
+    fn save_checkpoint(&mut self, args: &Args) -> Result<()> {
+        let file = File::create(&args.checkpoint_path)?;
         let mut writer = csv::Writer::from_writer(file);
         for result in &self.results {
             writer.serialize(result)?;
         }
         writer.flush()?;
-        self.calculate_stats();
+        self.calculate_stats(args);
         Ok(())
     }
 
-    fn load_checkpoint<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
-        if !path.as_ref().exists() {
+    fn load_checkpoint(&mut self, args: &Args) -> Result<()> {
+        if !Path::new(&args.checkpoint_path).exists() {
             return Ok(());
         }
 
-        let file = File::open(path.as_ref())?;
+        let file = File::open(&args.checkpoint_path)?;
         let mut reader = csv::Reader::from_reader(file);
 
         for result in reader.deserialize() {
@@ -138,12 +139,12 @@ impl Bench {
             self.results.push(result);
         }
 
-        self.calculate_stats();
+        self.calculate_stats(args);
 
         Ok(())
     }
 
-    fn calculate_stats(&mut self) {
+    fn calculate_stats(&mut self, args: &Args) {
         // Initialize stats for all models
         let mut model_totals = HashMap::new();
         let mut model_correct = HashMap::new();
@@ -284,18 +285,21 @@ impl Bench {
         &mut self,
         config: &Config,
         entries: &[TestEntry],
-        checkpoint_interval: usize,
-        checkpoint_path: &str,
-        git_directories: Vec<String>,
-        context_lines: ContextLines,
+        args: Args,
     ) -> Result<()> {
         println!("Running statistics test on {} entries", entries.len());
+
+        let context_lines = ContextLines {
+            code_context_lines: args.code_context_lines,
+            diff_context_lines: args.diff_context_lines,
+            patch_context_lines: args.patch_context_lines,
+        };
 
         // Create a new GitUtils instance to find the commit hash
         let git_utils = GitUtils::new(context_lines.clone(), false);
 
         // Load existing checkpoint
-        self.load_checkpoint(checkpoint_path)?;
+        self.load_checkpoint(&args)?;
         println!(
             "Loaded {} existing results from checkpoint",
             self.results.len()
@@ -323,7 +327,7 @@ impl Bench {
                 // Extract the diff from git
                 // Try each directory
                 if let Some(diff) =
-                    self.git_show_dirs(&git_utils, &git_directories, commit_hash, None)
+                    self.git_show_dirs(&git_utils, &args.git_directories, commit_hash, None)
                 {
                     // Store the diff for future use
                     self.git_diffs.insert(commit_hash.clone(), diff.clone());
@@ -399,15 +403,15 @@ impl Bench {
 
             modified = true;
             // Save checkpoint periodically
-            if (i + 1) % checkpoint_interval == 0 {
-                self.save_checkpoint(checkpoint_path)?;
+            if (i + 1) % args.checkpoint_interval == 0 {
+                self.save_checkpoint(&args)?;
                 modified = false;
             }
         }
 
         // Save final checkpoint
         if modified {
-            self.save_checkpoint(checkpoint_path)?;
+            self.save_checkpoint(&args)?;
         }
 
         Ok(())

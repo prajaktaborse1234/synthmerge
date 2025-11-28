@@ -4,49 +4,9 @@
 use anyhow::Result;
 use clap::Parser;
 use synthmerge::bench::Bench;
+use synthmerge::bench_args::Args;
 use synthmerge::config::Config;
-use synthmerge::git_utils::ContextLines;
 use synthmerge::logger::log_init;
-
-#[derive(Parser, Debug)]
-#[command(version)]
-struct Args {
-    /// Path to configuration file
-    #[arg(
-        short = 'c',
-        long = "config",
-        default_value = concat!("~/.config/", env!("CARGO_PKG_NAME"), ".yaml")
-    )]
-    config_path: String,
-
-    /// Path to test database file (JSON lines format)
-    #[arg(short = 'd', long = "database")]
-    database_path: String,
-
-    /// Path to checkpoint file
-    #[arg(short = 'k', long = "checkpoint")]
-    checkpoint_path: String,
-
-    /// Checkpoint interval (number of entries between saves)
-    #[arg(long = "checkpoint-interval", default_value = "100")]
-    checkpoint_interval: usize,
-
-    /// Git directories to search for diffs
-    #[arg(long = "git-dirs", value_delimiter = ',', required = true)]
-    git_directories: Vec<String>,
-
-    /// Number of context lines to include around conflict markers
-    #[arg(long = "code-context-lines", default_value = "3", value_parser = clap::value_parser!(u32).range(0..))]
-    code_context_lines: u32,
-
-    /// Number of context lines of the git_diff provided as context
-    #[arg(long = "diff-context-lines", default_value = "3", value_parser = clap::value_parser!(u32).range(0..))]
-    diff_context_lines: u32,
-
-    /// Number of context lines of the patch
-    #[arg(long = "patch-context-lines", default_value = "3", value_parser = clap::value_parser!(u32).range(0..))]
-    patch_context_lines: u32,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -68,19 +28,7 @@ async fn main() -> Result<()> {
     let mut test = Bench::new();
 
     // Run test
-    test.run_test(
-        &config,
-        &entries,
-        args.checkpoint_interval,
-        &args.checkpoint_path,
-        args.git_directories,
-        ContextLines {
-            code_context_lines: args.code_context_lines,
-            diff_context_lines: args.diff_context_lines,
-            patch_context_lines: args.patch_context_lines,
-        },
-    )
-    .await?;
+    test.run_test(&config, &entries, args).await?;
 
     Ok(())
 }
