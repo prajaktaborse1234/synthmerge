@@ -414,14 +414,13 @@ impl Bench {
             modified = true;
             // Save checkpoint periodically
             if (i + 1) % checkpoint_interval == 0 {
-                println!("Saving checkpoint...");
                 self.save_checkpoint(checkpoint_path)?;
+                modified = false;
             }
         }
 
         // Save final checkpoint
         if modified {
-            println!("Saving final checkpoint...");
             self.save_checkpoint(checkpoint_path)?;
         }
 
