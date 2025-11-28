@@ -237,12 +237,28 @@ impl<'a> ConflictResolver<'a> {
                     let model = self.get_model_name_z(endpoints, endpoint_index, y, z, dups);
                     if !resolved_string.starts_with(&conflict.head_context) {
                         log::warn!("Skipping {} - doesn't start with head context", model);
+                        let diff = ConflictResolver::create_diff(
+                            &conflict.head_context,
+                            &resolved_string[..conflict.head_context.len()],
+                            1,
+                        );
+                        log::trace!("HeadContextDiff: {}", diff);
                         *resolver_errors.errors.entry(model).or_insert(0) += 1;
 
                         continue;
                     }
-                    if !resolved_string.ends_with(&conflict.tail_context) {
+                    let tail_context = &format!("\n{}", &conflict.tail_context);
+                    if !resolved_string.ends_with(tail_context) {
                         log::warn!("Skipping {} - doesn't end with tail context", model);
+                        let diff = ConflictResolver::create_diff(
+                            &resolved_string[resolved_string
+                                .len()
+                                .saturating_sub(tail_context.len())
+                                .max(0)..],
+                            tail_context,
+                            1,
+                        );
+                        log::trace!("TailContextDiff: {}", diff);
                         *resolver_errors.errors.entry(model).or_insert(0) += 1;
                         continue;
                     }
@@ -251,7 +267,7 @@ impl<'a> ConflictResolver<'a> {
                         ..resolved_string.len() - conflict.tail_context.len()]
                         .to_string();
                     if !resolved_content.is_empty() && !resolved_content.ends_with('\n') {
-                        log::warn!(
+                        log::error!(
                             "Skipping {} - resolved content is not newline terminated",
                             model
                         );
@@ -346,12 +362,17 @@ Rewrite the {nr_head_context_lines} lines after {code_start} and the {nr_tail_co
             "{}{}{}",
             conflict.head_context, conflict.remote, conflict.tail_context
         );
+
+        Self::create_diff(&base, &remote, self.context_lines.patch_context_lines)
+    }
+
+    pub fn create_diff(base: &str, remote: &str, patch_context_lines: u32) -> String {
         use imara_diff::{Algorithm, BasicLineDiffPrinter, Diff, InternedInput, UnifiedDiffConfig};
-        let input = InternedInput::new(&base[..], &remote[..]);
+        let input = InternedInput::new(base, remote);
         let mut diff = Diff::compute(Algorithm::Histogram, &input);
         diff.postprocess_lines(&input);
         let mut config = UnifiedDiffConfig::default();
-        config.context_len(self.context_lines.patch_context_lines);
+        config.context_len(patch_context_lines);
         diff.unified_diff(&BasicLineDiffPrinter(&input.interner), config, &input)
             .to_string()
     }

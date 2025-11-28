@@ -394,7 +394,11 @@ impl Bench {
                                 {
                                     None
                                 } else {
-                                    Some(resolved_conflict.resolved_version)
+                                    Some(ConflictResolver::create_diff(
+                                        &resolved_conflict.resolved_version,
+                                        &entry.patched_code.clone(),
+                                        1,
+                                    ))
                                 },
                                 error: false,
                                 patch_commit_hash: entry.patch_commit_hash.clone(),
