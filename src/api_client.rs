@@ -146,7 +146,10 @@ impl ApiClient {
                     |response_text: &str| -> Result<ApiResponse> {
                         // Parse JSON response to extract the content
                         let json_response: serde_json::Value = serde_json::from_str(response_text)
-                            .context("Failed to parse JSON response")?;
+                            .with_context(|| {
+                                log::warn!("Failed to parse JSON response:\n{}", response_text);
+                                "Failed to parse JSON response"
+                            })?;
 
                         let content = json_response
                             .get("choices")
@@ -154,7 +157,13 @@ impl ApiClient {
                             .and_then(|choice| choice.get("message"))
                             .and_then(|message| message.get("content"))
                             .and_then(|content| content.as_str())
-                            .context("Failed to extract content from response")?;
+                            .with_context(|| {
+                                log::warn!(
+                                    "Failed to extract content from response:\n{}",
+                                    serde_json::to_string_pretty(&json_response).unwrap()
+                                );
+                                "Failed to extract content from response"
+                            })?;
 
                         let total_tokens = json_response
                             .get("usage")
@@ -226,14 +235,23 @@ impl ApiClient {
                     |response_text: &str| -> Result<ApiResponse> {
                         // Parse JSON response to extract the content
                         let json_response: serde_json::Value = serde_json::from_str(response_text)
-                            .context("Failed to parse JSON response")?;
+                            .with_context(|| {
+                                log::warn!("Failed to parse JSON response:\n{}", response_text);
+                                "Failed to parse JSON response"
+                            })?;
 
                         let content = json_response
                             .get("content")
                             .and_then(|choices| choices.get(0))
                             .and_then(|choice| choice.get("text"))
                             .and_then(|content| content.as_str())
-                            .context("Failed to extract content from response")?;
+                            .with_context(|| {
+                                log::warn!(
+                                    "Failed to extract content from response:\n{}",
+                                    serde_json::to_string_pretty(&json_response).unwrap()
+                                );
+                                "Failed to extract content from response"
+                            })?;
 
                         let total_tokens = json_response
                             .get("usage")
@@ -318,12 +336,19 @@ impl ApiClient {
 
         let response_handler = |response_text: &str| -> Result<ApiResponse> {
             // Try to parse as JSON and extract content
-            let json_response: serde_json::Value =
-                serde_json::from_str(response_text).context("Failed to parse JSON response")?;
+            let json_response: serde_json::Value = serde_json::from_str(response_text)
+                .with_context(|| {
+                    log::warn!("Failed to parse JSON response:\n{}", response_text);
+                    "Failed to parse JSON response"
+                })?;
             if json_response.get("jsonrpc").and_then(|v| v.as_str()) != Some("2.0") {
+                log::warn!(
+                    "Invalid patchpal jsonrpc version:\n{}",
+                    serde_json::to_string_pretty(&json_response).unwrap()
+                );
                 return Err(anyhow::anyhow!("Invalid patchpal jsonrpc version"));
             }
-            let responses = json_response
+            let responses: Vec<_> = json_response
                 .get("result")
                 .and_then(|v| v.as_array())
                 .context("Failed to extract content from patchpal response")?
@@ -342,6 +367,12 @@ impl ApiClient {
                     ))
                 })
                 .collect();
+            if responses.iter().any(Result::is_err) {
+                log::warn!(
+                    "Failed to extract content from patchpal response:\n{}",
+                    serde_json::to_string_pretty(&json_response).unwrap()
+                );
+            }
 
             Ok(ApiResponse {
                 responses,
