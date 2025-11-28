@@ -51,9 +51,7 @@ pub enum EndpointTypeConfig {
     OpenAI {
         #[serde(default)]
         model: String,
-        #[serde(default)]
         api_key_file: Box<Option<String>>,
-        #[serde(default)]
         params: Option<Vec<OpenAIParams>>,
     },
     #[serde(rename = "patchpal")]
@@ -62,19 +60,13 @@ pub enum EndpointTypeConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct OpenAIParams {
-    #[serde(default)]
     pub variant: Box<Option<String>>,
     #[serde(default)]
     pub no_context: bool,
-    #[serde(default)]
     pub reasoning_effort: Box<Option<String>>,
-    #[serde(default)]
     pub temperature: Option<f64>,
-    #[serde(default)]
     pub top_k: Option<u32>,
-    #[serde(default)]
     pub top_p: Option<f64>,
-    #[serde(default)]
     pub min_p: Option<f64>,
 }
 
