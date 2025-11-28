@@ -326,7 +326,7 @@ impl<'a> ConflictResolver<'a> {
 
 FINALLY write the final PATCHED CODE between {patched_code_start}{patched_code_end} instead of markdown fences.
 
-Rewrite the {nr_head_context_lines} lines after {code_start} and the {nr_tail_context_lines} lines before {code_end} exactly the same, including all empty lines."#,
+Rewrite the {nr_head_context_lines} line{head_plural} after {code_start} and the {nr_tail_context_lines} line{tail_plural} before {code_end} exactly the same, including all empty lines."#,
             patch_start = Self::PATCH_START,
             patch_end = Self::PATCH_END,
             code_start = Self::CODE_START,
@@ -334,7 +334,17 @@ Rewrite the {nr_head_context_lines} lines after {code_start} and the {nr_tail_co
             patched_code_start = Self::PATCHED_CODE_START,
             patched_code_end = Self::PATCHED_CODE_END,
             nr_head_context_lines = conflict.nr_head_context_lines,
-            nr_tail_context_lines = conflict.nr_tail_context_lines
+            nr_tail_context_lines = conflict.nr_tail_context_lines,
+            head_plural = if conflict.nr_head_context_lines != 1 {
+                "s"
+            } else {
+                ""
+            },
+            tail_plural = if conflict.nr_tail_context_lines != 1 {
+                "s"
+            } else {
+                ""
+            }
         )
     }
 
