@@ -112,15 +112,15 @@ endpoints:
   - name: "llama.cpp vulkan"
     url: "http://localhost:8811/v1/chat/completions"
     type: "openai"
-    params:
-      # one query for each entry in the params list
-      - variant: "default"
-      - variant: "min_p"
+    variants:
+      # one query for each entry in the variants list
+      - name: "default"
+      - name: "min_p"
         temperature: 0.3
         top_p: 1.0
         top_k: 0
         min_p: 0.9
-      - variant: "no_context"
+      - name: "no_context"
         no_context: true
     
   - name: "Gemini 2.5 pro"
@@ -128,7 +128,7 @@ endpoints:
     type: "openai"
     model: "gemini-2.5-pro"
     api_key_file: "~/.gemini.api-key"
-    params:
+    variants:
       - reasoning_effort: "high"
 ```
 

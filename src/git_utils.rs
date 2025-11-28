@@ -664,7 +664,10 @@ impl GitUtils {
 
     /// Check if we are currently in a cherry-pick, merge, or rebase state
     pub fn find_commit_hash(&mut self) -> Result<Option<String>> {
-        let git_dir = self.git_dir.as_ref().unwrap();
+        let git_dir = self
+            .git_dir
+            .as_ref()
+            .context("Not running in a git repository")?;
 
         // Check for cherry-pick, merge, and rebase HEAD files
         let mut head_files = Vec::new();

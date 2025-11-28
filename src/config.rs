@@ -24,6 +24,9 @@ pub struct EndpointConfig {
     #[serde(default = "default_max_delay")]
     pub max_delay: u64,
     pub root_certificate_pem: Option<String>,
+    pub api_key_file: Box<Option<String>>,
+    pub context: Option<EndpointContext>,
+    pub json: Option<EndpointJson>,
     #[serde(flatten)]
     pub config: EndpointTypeConfig,
 }
@@ -49,25 +52,33 @@ fn default_max_delay() -> u64 {
 pub enum EndpointTypeConfig {
     #[serde(rename = "openai")]
     OpenAI {
-        #[serde(default)]
-        model: String,
-        api_key_file: Box<Option<String>>,
-        params: Option<Vec<OpenAIParams>>,
+        variants: Option<Vec<EndpointVariants>>,
+    },
+    #[serde(rename = "anthropic")]
+    Anthropic {
+        variants: Option<Vec<EndpointVariants>>,
     },
     #[serde(rename = "patchpal")]
     Patchpal {},
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct OpenAIParams {
-    pub variant: Box<Option<String>>,
+pub struct EndpointVariants {
+    pub name: Box<Option<String>>,
+    pub context: Option<EndpointContext>,
+    pub json: Option<EndpointJson>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct EndpointContext {
     #[serde(default)]
-    pub no_context: bool,
-    pub reasoning_effort: Box<Option<String>>,
-    pub temperature: Option<f64>,
-    pub top_k: Option<u32>,
-    pub top_p: Option<f64>,
-    pub min_p: Option<f64>,
+    pub no_diff: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EndpointJson {
+    #[serde(flatten)]
+    pub json: std::collections::HashMap<String, serde_json::Value>,
 }
 
 impl Config {
@@ -121,7 +132,7 @@ impl Config {
             }
 
             // Validate OpenAI endpoint configuration
-            Self::validate_openai_endpoint(endpoint, i, path)?;
+            Self::validate_endpoint(endpoint, i, path)?;
         }
 
         let mut seen_names = std::collections::HashSet::new();
@@ -144,67 +155,107 @@ impl Config {
         for endpoint in endpoints {
             endpoint.name = endpoint.name.trim().to_string();
             endpoint.url = endpoint.url.trim().to_string();
-            if let EndpointTypeConfig::OpenAI { params, .. } = &mut endpoint.config
-                && let Some(param_list) = params
-            {
-                for param in param_list {
-                    if let Some(variant) = &mut *param.variant {
-                        *variant = variant.trim().to_string();
-                    }
+            Self::trim_variants_whitespace(&mut endpoint.config);
+        }
+    }
+
+    fn trim_variants_whitespace(config: &mut EndpointTypeConfig) {
+        if let EndpointTypeConfig::OpenAI { variants, .. }
+        | EndpointTypeConfig::Anthropic { variants, .. } = config
+            && let Some(variant_list) = variants
+        {
+            for variant in variant_list {
+                if let Some(variant) = &mut *variant.name {
+                    *variant = variant.trim().to_string();
                 }
             }
         }
     }
 
-    fn validate_openai_endpoint(
-        endpoint: &EndpointConfig,
-        index: usize,
+    fn validate_endpoint(endpoint: &EndpointConfig, index: usize, path: &Path) -> Result<()> {
+        if let EndpointTypeConfig::OpenAI { variants, .. }
+        | EndpointTypeConfig::Anthropic { variants, .. } = &endpoint.config
+        {
+            // Check that all variant names are unique
+            Self::validate_variants(variants, index, path, &endpoint.json, &endpoint.context)?;
+        }
+        Ok(())
+    }
+
+    fn validate_variants(
+        variants_list: &Option<Vec<EndpointVariants>>,
+        endpoint_index: usize,
         path: &Path,
+        endpoint_json: &Option<EndpointJson>,
+        endpoint_context: &Option<EndpointContext>,
     ) -> Result<()> {
-        if let EndpointTypeConfig::OpenAI { params, .. } = &endpoint.config {
-            if params.as_ref().is_some_and(|p| p.is_empty()) {
-                return Err(anyhow::anyhow!(
-                    "Endpoint {} in config file {} has empty OpenAI params",
-                    index,
-                    path.display()
-                ));
-            }
+        if let Some(variants_list) = variants_list {
             // Check that all variant names are unique
             let mut seen_variants = std::collections::HashSet::new();
-            if let Some(param_list) = params {
-                for (j, param) in param_list.iter().enumerate() {
-                    let variant = if let Some(v) = &*param.variant {
-                        v.to_string()
-                    } else {
-                        "".to_string()
-                    };
-                    if param_list.len() != 1 && variant.is_empty() {
+            // Collect all keys from endpoint.json
+            let mut seen_keys = std::collections::HashSet::new();
+            if let Some(endpoint_json) = endpoint_json {
+                for key in endpoint_json.json.keys() {
+                    if !seen_keys.insert(key) {
                         return Err(anyhow::anyhow!(
-                            "Endpoint {} in config file {} has empty variant name at index {}",
-                            index,
+                            "Endpoint {} in config file {} has duplicate key '{}' in endpoint.json",
+                            endpoint_index,
                             path.display(),
-                            j
+                            key
                         ));
                     }
-                    if variant.chars().any(|c| Self::FORBIDDEN_CHARS.contains(c)) {
-                        return Err(anyhow::anyhow!(
-                            "Endpoint {} in config file {} has invalid variant name '{}' at index {} contains {} chars",
-                            index,
-                            path.display(),
-                            variant,
-                            j,
-                            Self::FORBIDDEN_CHARS
-                        ));
+                }
+            }
+            for (j, variant) in variants_list.iter().enumerate() {
+                let variant_name = if let Some(v) = &*variant.name {
+                    v.to_string()
+                } else {
+                    "".to_string()
+                };
+                if variant_name
+                    .chars()
+                    .any(|c| Self::FORBIDDEN_CHARS.contains(c))
+                {
+                    return Err(anyhow::anyhow!(
+                        "Endpoint {} in config file {} has invalid variant name '{}' at index {} contains {} chars",
+                        endpoint_index,
+                        path.display(),
+                        variant_name,
+                        j,
+                        Self::FORBIDDEN_CHARS
+                    ));
+                }
+                if !seen_variants.insert(variant_name) {
+                    return Err(anyhow::anyhow!(
+                        "Endpoint {} in config file {} has duplicate variant name '{}' at index {}",
+                        endpoint_index,
+                        path.display(),
+                        variant.name.as_deref().unwrap_or(""),
+                        j
+                    ));
+                }
+                // Check for duplicate keys between endpoint.json and variant.json
+                if let Some(variant_json) = &variant.json {
+                    for key in variant_json.json.keys() {
+                        if !seen_keys.insert(key) {
+                            return Err(anyhow::anyhow!(
+                                "Endpoint {} in config file {} has duplicate key '{}' in variant {} at index {}",
+                                endpoint_index,
+                                path.display(),
+                                key,
+                                variant.name.clone().unwrap_or("\"\"".to_string()),
+                                j
+                            ));
+                        }
                     }
-                    if !seen_variants.insert(variant) {
-                        return Err(anyhow::anyhow!(
-                            "Endpoint {} in config file {} has duplicate variant name '{}' at index {}",
-                            index,
-                            path.display(),
-                            param.variant.as_deref().unwrap_or(""),
-                            j
-                        ));
-                    }
+                }
+                // Check that if endpoint.context.is_some() then each variant.context.is_some() == false
+                if endpoint_context.is_some() && variant.context.is_some() {
+                    return Err(anyhow::anyhow!(
+                        "Endpoint {} in config file {} has context defined at endpoint level, so all variants must not have context defined",
+                        endpoint_index,
+                        path.display()
+                    ));
                 }
             }
         }

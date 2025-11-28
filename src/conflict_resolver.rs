@@ -159,20 +159,21 @@ impl<'a> ConflictResolver<'a> {
         dups: usize,
     ) -> String {
         let endpoint = &endpoints[i];
-        let variant = match &endpoint.config {
-            EndpointTypeConfig::OpenAI { params, .. } => {
-                if let Some(params) = params {
-                    if let Some(param) = params.get(y) {
-                        match param.variant.as_deref() {
+        let variant_name = match &endpoint.config {
+            EndpointTypeConfig::OpenAI { variants, .. }
+            | EndpointTypeConfig::Anthropic { variants, .. } => {
+                if let Some(variants) = variants {
+                    if let Some(variant) = variants.get(y) {
+                        match variant.name.as_deref() {
                             Some(variant) => format!("{} ({})", endpoint.name, variant),
                             None => endpoint.name.clone(),
                         }
                     } else {
-                        assert!(y == 0); // When we have params, we expect to be able to index into them
+                        assert!(y == 0); // When we have variants, we expect to be able to index into them
                         endpoint.name.clone()
                     }
                 } else {
-                    // No params defined, use endpoint name directly
+                    // No variants defined, use endpoint name directly
                     endpoint.name.clone()
                 }
             }
@@ -181,9 +182,9 @@ impl<'a> ConflictResolver<'a> {
             }
         };
         if z > 0 {
-            format!("{} #{}", variant, z + 1 - dups)
+            format!("{} #{}", variant_name, z + 1 - dups)
         } else {
-            variant
+            variant_name
         }
     }
 

@@ -438,18 +438,19 @@ impl Bench {
         // Collect all model names from endpoints configuration
         for endpoint in config.get_all_endpoints() {
             match &endpoint.config {
-                EndpointTypeConfig::OpenAI { params, .. } => {
-                    if let Some(params) = params {
-                        for param in params.iter() {
-                            let variant = if let Some(variant) = &*param.variant {
+                EndpointTypeConfig::OpenAI { variants, .. }
+                | EndpointTypeConfig::Anthropic { variants, .. } => {
+                    if let Some(variants) = variants {
+                        for variant in variants.iter() {
+                            let variant_name = if let Some(variant) = &*variant.name {
                                 format!("{} ({})", endpoint.name, variant)
                             } else {
                                 endpoint.name.clone()
                             };
-                            model_names.push(variant);
+                            model_names.push(variant_name);
                         }
                     } else {
-                        // No params, just the endpoint name
+                        // No variants, just the endpoint name
                         model_names.push(endpoint.name.clone());
                     }
                 }
