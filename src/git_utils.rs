@@ -20,6 +20,14 @@ pub struct GitCommand {
     command: Command,
 }
 
+/// Remove conflict markers from content
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ConflictMarkerMode {
+    Local,
+    Base,
+    Remote,
+}
+
 impl GitCommand {
     pub fn new(program: &str) -> Self {
         let cmd = Command::new(program);
@@ -155,7 +163,7 @@ impl GitUtils {
                 .chars()
                 .map(|c| format!(r"\{}", c))
                 .collect::<String>(),
-            Self::create_conflict_marker(marker_size),
+            Self::create_remote_marker(marker_size),
             Self::create_end_marker(marker_size),
         ))
         .unwrap();
@@ -208,30 +216,31 @@ impl GitUtils {
 
         let remote_start = conflict_lines
             .iter()
-            .position(|&line| line == format!("{}\n", Self::create_conflict_marker(marker_size)))
+            .position(|&line| line == format!("{}\n", Self::create_remote_marker(marker_size)))
             .context("Failed to find conflict marker")?;
-
-        let synthmerge_start = conflict_lines
-            .iter()
-            .position(|&line| {
-                line.starts_with(&format!(
-                    "{} synthmerge: ",
-                    Self::create_base_marker(marker_size)
-                ))
-            })
-            .unwrap_or(remote_start);
 
         let remote_end = conflict_lines
             .iter()
             .position(|&line| line.starts_with(&Self::create_end_marker(marker_size)))
             .context("Failed to find conflict end marker")?;
 
-        if remote_end <= remote_start || remote_start <= base_start || base_start <= local_start {
+        let ai_start = conflict_lines
+            .iter()
+            .position(|&line| {
+                line.starts_with(&format!("{} ", Self::create_ai_marker(marker_size)))
+            })
+            .unwrap_or(remote_end);
+
+        if remote_end < ai_start
+            || remote_end <= remote_start
+            || remote_start <= base_start
+            || base_start <= local_start
+        {
             return Err(anyhow::anyhow!("Invalid conflict markers"));
         }
 
         let local_lines: Vec<&str> = conflict_lines[local_start + 1..base_start].to_vec();
-        let base_lines: Vec<&str> = conflict_lines[base_start + 1..synthmerge_start].to_vec();
+        let base_lines: Vec<&str> = conflict_lines[base_start + 1..remote_start].to_vec();
         let remote_lines: Vec<&str> = conflict_lines[remote_start + 1..remote_end].to_vec();
 
         let content_lines: Vec<&str> = content.split_inclusive('\n').collect();
@@ -245,6 +254,7 @@ impl GitUtils {
         let head_content_lines = Self::remove_conflict_markers(
             head_content_lines[..head_context_end].to_vec(),
             marker_size,
+            ConflictMarkerMode::Local,
         )?;
         let head_context_lines = head_content_lines[head_content_lines
             .len()
@@ -258,7 +268,11 @@ impl GitUtils {
             .min(content_lines.len());
         let nr_tail_context_lines = tail_context_end - tail_context_start;
         let tail_content_lines = content_lines[start_line + conflict_lines.len() - 1..].to_vec();
-        let tail_content_lines = Self::remove_conflict_markers(tail_content_lines, marker_size)?;
+        let tail_content_lines = Self::remove_conflict_markers(
+            tail_content_lines,
+            marker_size,
+            ConflictMarkerMode::Local,
+        )?;
         let tail_context_lines = tail_content_lines[..tail_content_lines
             .len()
             .min(self.context_lines.code_context_lines as usize)]
@@ -272,7 +286,7 @@ impl GitUtils {
             head_context: head_context_lines.join(""),
             tail_context: tail_context_lines.join(""),
             start_line,
-            remote_start,
+            remote_end, // append new AI results at the end
             nr_head_context_lines,
             nr_tail_context_lines,
             marker_size,
@@ -327,8 +341,13 @@ impl GitUtils {
     }
 
     /// Create a conflict marker with specified size
-    fn create_conflict_marker(size: usize) -> String {
+    fn create_remote_marker(size: usize) -> String {
         Self::create_marker('=', size)
+    }
+
+    /// Create a AI marker with specified size
+    fn create_ai_marker(size: usize) -> String {
+        Self::create_marker('&', size)
     }
 
     /// Create an end marker with specified size
@@ -336,33 +355,44 @@ impl GitUtils {
         Self::create_marker('>', size)
     }
 
-    /// Remove conflict markers from content
-    fn remove_conflict_markers(content_lines: Vec<&str>, marker_size: usize) -> Result<Vec<&str>> {
+    fn remove_conflict_markers(
+        content_lines: Vec<&str>,
+        marker_size: usize,
+        mode: ConflictMarkerMode,
+    ) -> Result<Vec<&str>> {
         let mut skip_lines = false;
-        let mut in_head = false;
+        let mut in_region = false;
         let result: Vec<&str> = content_lines
             .into_iter()
             .filter(|line| {
                 if line.starts_with(&Self::create_local_marker(marker_size)) {
-                    in_head = true;
+                    in_region = mode == ConflictMarkerMode::Local;
                     skip_lines = true;
                     return false;
-                }
-                if line.starts_with(&Self::create_base_marker(marker_size)) {
-                    in_head = false;
+                } else if line.starts_with(&Self::create_base_marker(marker_size)) {
+                    in_region = mode == ConflictMarkerMode::Base;
                     return false;
-                }
-                if line.starts_with(&Self::create_end_marker(marker_size)) {
+                } else if line.starts_with(&Self::create_remote_marker(marker_size)) {
+                    in_region = mode == ConflictMarkerMode::Remote;
+                    return false;
+                } else if line.starts_with(&Self::create_ai_marker(marker_size)) {
+                    in_region = false;
+                    return false;
+                } else if line.starts_with(&Self::create_end_marker(marker_size)) {
                     skip_lines = false;
-                    in_head = false;
+                    in_region = false;
                     return false;
                 }
-                !skip_lines || in_head
+                !skip_lines || in_region
             })
             .collect();
 
         // Check for nested conflict markers
-        let re = Regex::new(&format!(r"^(<|>|=|\|){{{},}}", Self::DEFAULT_MARKER_SIZE,)).unwrap();
+        let re = Regex::new(&format!(
+            r"^(<|>|=|\||\&){{{},}}",
+            Self::DEFAULT_MARKER_SIZE,
+        ))
+        .unwrap();
         let has_nested_markers = result.iter().any(|line| re.is_match(line));
 
         if has_nested_markers {
@@ -395,23 +425,28 @@ impl GitUtils {
 
             // Calculate the line where we want to insert the resolved content
             //print startline and remote start
-            let insert_line = conflict.conflict.start_line + conflict.conflict.remote_start - 1;
+            let insert_line = conflict.conflict.start_line + conflict.conflict.remote_end - 1;
 
             // Get the marker size for this file from gitattributes
             let marker_size = conflict.conflict.marker_size;
 
             // Insert the resolved content with markers
-            let marker_raw = format!(
-                "{} {}: ",
-                Self::create_base_marker(marker_size),
-                env!("CARGO_PKG_NAME")
+            let marker_raw = format!("{} ", Self::create_ai_marker(marker_size));
+            let marker = format!(
+                "{}{}: {}\n",
+                marker_raw,
+                env!("CARGO_PKG_NAME"),
+                conflict.model
             );
-            let marker = format!("{}{}\n", marker_raw, conflict.model);
             let current_line = &lines[insert_line];
-            if *current_line != format!("{}\n", Self::create_conflict_marker(marker_size))
+            if !current_line.starts_with(&format!("{} ", Self::create_end_marker(marker_size)))
                 && !current_line.starts_with(&marker_raw)
             {
-                log::error!("Invalid conflict marker found at line {}", insert_line);
+                log::error!(
+                    "Invalid conflict marker found at line {}\n{}",
+                    insert_line,
+                    current_line
+                );
                 continue;
             }
             lines.insert(insert_line, marker);

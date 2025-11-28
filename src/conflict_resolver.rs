@@ -17,7 +17,7 @@ pub struct Conflict {
     pub head_context: String,
     pub tail_context: String,
     pub start_line: usize,
-    pub remote_start: usize,
+    pub remote_end: usize,
     pub nr_head_context_lines: usize,
     pub nr_tail_context_lines: usize,
     pub marker_size: usize,
