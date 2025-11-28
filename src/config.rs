@@ -32,11 +32,11 @@ fn default_timeout() -> u64 {
 }
 
 fn default_retries() -> u32 {
-    10
+    100
 }
 
 fn default_delay() -> u64 {
-    1000
+    10000
 }
 
 fn default_max_delay() -> u64 {
