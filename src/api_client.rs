@@ -132,12 +132,13 @@ impl ApiClient {
 
         for variant in variants_list {
             let prompt = self.build_prompt(request, variant);
+            let message = self.build_message(request, variant);
 
             let mut payload = if !*no_chat {
                 serde_json::json!({
                 "messages": [
                     {"role": "system", "content": prompt},
-                    {"role": "user", "content": request.message},
+                    {"role": "user", "content": message},
                 ]})
             } else {
                 serde_json::json!({
@@ -220,11 +221,13 @@ impl ApiClient {
 
         for variant in variants_list {
             let prompt = self.build_prompt(request, variant);
+            let message = self.build_message(request, variant);
 
             let mut payload = serde_json::json!({
+                "system": prompt,
                 "messages": [
                     {"role": "user", "content": [{"type": "text",
-                      "text": format!("{}\n\n{}", prompt, request.message)}]}, ],
+                      "text": message}]}, ],
             });
 
             self.apply_parameters(&mut payload, &request.endpoint.json)?;
@@ -277,24 +280,28 @@ impl ApiClient {
         Ok(responses)
     }
 
-    fn build_prompt(&self, request: &ApiRequest, variant: &EndpointVariants) -> String {
+    fn build_prompt<'a>(&self, request: &'a ApiRequest, _variant: &EndpointVariants) -> &'a String {
+        log::debug!("Prompt:\n{}", request.prompt);
+        &request.prompt
+    }
+
+    fn build_message(&self, request: &ApiRequest, variant: &EndpointVariants) -> String {
         let context = if request.endpoint.context.is_some() {
             &request.endpoint.context
         } else {
             &variant.context
         };
 
-        let mut prompt = format!("{}\n\n{}", request.prompt, request.training);
+        let mut message = request.training.to_string();
         if let Some(git_diff) = &request.git_diff
             && !context.as_ref().map(|x| x.no_diff).unwrap_or(false)
         {
-            prompt = format!("{}\n\n{}", prompt, git_diff)
+            message = format!("{}\n\n{}", message, git_diff);
         }
+        message = format!("{}\n\n{}", message, request.message);
 
-        log::debug!("Prompt:\n{}", prompt);
-        log::info!("Message:\n{}", request.message);
-
-        prompt
+        log::info!("Message:\n{}", message);
+        message
     }
 
     fn apply_parameters(
