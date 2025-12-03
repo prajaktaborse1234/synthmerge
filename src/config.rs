@@ -53,6 +53,8 @@ pub enum EndpointTypeConfig {
     #[serde(rename = "openai")]
     OpenAI {
         variants: Option<Vec<EndpointVariants>>,
+        #[serde(default)]
+        no_chat: bool, // false: /v1/chat/completions true /v1/completions
     },
     #[serde(rename = "anthropic")]
     Anthropic {

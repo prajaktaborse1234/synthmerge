@@ -5,6 +5,7 @@ use crate::bench_args::Args;
 use crate::config::{Config, EndpointTypeConfig};
 use crate::conflict_resolver::{Conflict, ConflictResolver};
 use crate::git_utils::{ContextLines, GitUtils};
+use crate::prob::logprob_to_prob;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -30,10 +31,22 @@ struct TestResult {
     correct_stripped: bool,
     duration: f64,
     tokens: Option<u64>,
+    logprob: Option<f64>,
     failed_patched_code: Option<String>,
     error: bool,
     patch_commit_hash: String,
     code_commit_hash: String,
+}
+
+#[derive(Debug)]
+pub enum LogprobType {
+    Global,
+    Errors,
+    Incorrect,
+    CorrectStripped,
+    CorrectAligned,
+    Correct,
+    COUNT,
 }
 
 #[derive(Debug)]
@@ -48,6 +61,7 @@ struct ModelStats {
     accuracy_stripped: f64,
     error_rate: f64,
     avg_tokens: f64,
+    avg_logprob: [f64; LogprobType::COUNT as usize],
     avg_duration: f64,
 }
 
@@ -151,6 +165,10 @@ impl Bench {
         let mut model_correct_aligned = HashMap::new();
         let mut model_correct_stripped = HashMap::new();
         let mut model_tokens = HashMap::new();
+        let mut model_logprob = Vec::with_capacity(LogprobType::COUNT as usize);
+        for _ in 0..LogprobType::COUNT as usize {
+            model_logprob.push(HashMap::new());
+        }
         let mut model_durations = HashMap::new();
         let mut model_errors = HashMap::new();
 
@@ -177,6 +195,38 @@ impl Bench {
                     .or_insert_with(Vec::new)
                     .push(tokens);
             }
+            if let Some(logprob) = result.logprob {
+                model_logprob[LogprobType::Global as usize]
+                    .entry(model.clone())
+                    .or_insert_with(Vec::new)
+                    .push(logprob);
+                if result.error {
+                    model_logprob[LogprobType::Errors as usize]
+                        .entry(model.clone())
+                        .or_insert_with(Vec::new)
+                        .push(logprob);
+                } else if result.correct {
+                    model_logprob[LogprobType::Correct as usize]
+                        .entry(model.clone())
+                        .or_insert_with(Vec::new)
+                        .push(logprob);
+                } else if result.correct_aligned {
+                    model_logprob[LogprobType::CorrectAligned as usize]
+                        .entry(model.clone())
+                        .or_insert_with(Vec::new)
+                        .push(logprob);
+                } else if result.correct_stripped {
+                    model_logprob[LogprobType::CorrectStripped as usize]
+                        .entry(model.clone())
+                        .or_insert_with(Vec::new)
+                        .push(logprob);
+                } else {
+                    model_logprob[LogprobType::Incorrect as usize]
+                        .entry(model.clone())
+                        .or_insert_with(Vec::new)
+                        .push(logprob);
+                }
+            }
             model_durations
                 .entry(model.clone())
                 .or_insert_with(Vec::new)
@@ -190,39 +240,50 @@ impl Bench {
         self.model_stats.clear();
         for (model, total) in model_totals {
             let correct = model_correct.get(&model).copied().unwrap_or(0);
-            let accuracy = if total > 0 {
-                correct as f64 / total as f64
-            } else {
-                0.0
-            };
+            let accuracy = correct as f64 / total as f64;
             let correct_aligned = model_correct_aligned.get(&model).copied().unwrap_or(0);
-            let accuracy_aligned = if total > 0 {
-                correct_aligned as f64 / total as f64
-            } else {
-                0.0
-            };
+            let accuracy_aligned = correct_aligned as f64 / total as f64;
             let correct_stripped = model_correct_stripped.get(&model).copied().unwrap_or(0);
-            let accuracy_stripped = if total > 0 {
-                correct_stripped as f64 / total as f64
-            } else {
-                0.0
-            };
+            let accuracy_stripped = correct_stripped as f64 / total as f64;
             let error = model_errors.get(&model).copied().unwrap_or(0);
-            let error_rate = if total > 0 {
-                error as f64 / total as f64
-            } else {
-                0.0
-            };
+            let error_rate = error as f64 / total as f64;
 
             let avg_tokens = model_tokens
                 .get(&model)
                 .map(|tokens| tokens.iter().sum::<u64>() as f64 / tokens.len() as f64)
-                .unwrap_or(0.0);
+                .unwrap_or(f64::INFINITY);
+
+            let avg_logprob = [
+                model_logprob[LogprobType::Global as usize]
+                    .get(&model)
+                    .map(|logprob| logprob.iter().sum::<f64>() / logprob.len() as f64)
+                    .unwrap_or(f64::INFINITY),
+                model_logprob[LogprobType::Errors as usize]
+                    .get(&model)
+                    .map(|logprob| logprob.iter().sum::<f64>() / logprob.len() as f64)
+                    .unwrap_or(f64::INFINITY),
+                model_logprob[LogprobType::Incorrect as usize]
+                    .get(&model)
+                    .map(|logprob| logprob.iter().sum::<f64>() / logprob.len() as f64)
+                    .unwrap_or(f64::INFINITY),
+                model_logprob[LogprobType::CorrectStripped as usize]
+                    .get(&model)
+                    .map(|logprob| logprob.iter().sum::<f64>() / logprob.len() as f64)
+                    .unwrap_or(f64::INFINITY),
+                model_logprob[LogprobType::CorrectAligned as usize]
+                    .get(&model)
+                    .map(|logprob| logprob.iter().sum::<f64>() / logprob.len() as f64)
+                    .unwrap_or(f64::INFINITY),
+                model_logprob[LogprobType::Correct as usize]
+                    .get(&model)
+                    .map(|logprob| logprob.iter().sum::<f64>() / logprob.len() as f64)
+                    .unwrap_or(f64::INFINITY),
+            ];
 
             let avg_duration = model_durations
                 .get(&model)
                 .map(|durations| durations.iter().sum::<f64>() / durations.len() as f64)
-                .unwrap_or(0.0);
+                .unwrap_or(f64::INFINITY);
 
             self.model_stats.insert(
                 model,
@@ -237,6 +298,7 @@ impl Bench {
                     accuracy_stripped,
                     error_rate,
                     avg_tokens,
+                    avg_logprob,
                     avg_duration,
                 },
             );
@@ -262,26 +324,49 @@ impl Bench {
                 stats.correct,
                 stats.total
             );
-            println!(
-                "  Accuracy (aligned): {:.2}% ({}/{})",
-                stats.accuracy_aligned * 100.0,
-                stats.correct_aligned,
-                stats.total
-            );
-            println!(
-                "  Accuracy (stripped): {:.2}% ({}/{})",
-                stats.accuracy_stripped * 100.0,
-                stats.correct_stripped,
-                stats.total
-            );
-            println!(
-                "  Error Rate: {:.2}% ({}/{})",
-                stats.error_rate * 100.0,
-                stats.error,
-                stats.total
-            );
-            println!("  Average tokens: {:.2}", stats.avg_tokens);
-            println!("  Average duration: {:.2} s", stats.avg_duration);
+            if stats.accuracy_aligned.is_finite() {
+                println!(
+                    "  Accuracy (aligned): {:.2}% ({}/{})",
+                    stats.accuracy_aligned * 100.0,
+                    stats.correct_aligned,
+                    stats.total
+                );
+            }
+            if stats.accuracy_stripped.is_finite() {
+                println!(
+                    "  Accuracy (stripped): {:.2}% ({}/{})",
+                    stats.accuracy_stripped * 100.0,
+                    stats.correct_stripped,
+                    stats.total
+                );
+            }
+            if stats.error_rate.is_finite() {
+                println!(
+                    "  Error Rate: {:.2}% ({}/{})",
+                    stats.error_rate * 100.0,
+                    stats.error,
+                    stats.total
+                );
+            }
+            if stats.avg_tokens.is_finite() {
+                println!("  Average tokens: {:.2}", stats.avg_tokens);
+            }
+            if stats.avg_duration.is_finite() {
+                println!("  Average duration: {:.2} s", stats.avg_duration);
+            }
+            let logprob_type_names = [
+                "Average logprob",
+                "Average logprob (errors)",
+                "Average logprob (incorrect)",
+                "Average logprob (stripped)",
+                "Average logprob (aligned)",
+                "Average logprob (correct)",
+            ];
+            for (i, &value) in stats.avg_logprob.iter().enumerate() {
+                if value.is_finite() {
+                    println!("  {}: {:.1}", logprob_type_names[i], logprob_to_prob(value));
+                }
+            }
         }
     }
 
@@ -363,6 +448,7 @@ impl Bench {
                                 correct_stripped: false,
                                 duration: 0.0,
                                 tokens: None,
+                                logprob: None,
                                 failed_patched_code: None,
                                 error: true,
                                 patch_commit_hash: entry.patch_commit_hash.clone(),
@@ -387,6 +473,7 @@ impl Bench {
                                 ),
                                 duration: resolved_conflict.duration,
                                 tokens: resolved_conflict.total_tokens,
+                                logprob: resolved_conflict.logprob,
                                 failed_patched_code: if resolved_conflict.resolved_version
                                     == entry.patched_code
                                 {
@@ -486,6 +573,7 @@ impl Bench {
                 correct_stripped: false,
                 duration: 0.0,
                 tokens: None,
+                logprob: None,
                 failed_patched_code: None,
                 error: true,
                 patch_commit_hash: entry.patch_commit_hash.clone(),
@@ -602,6 +690,7 @@ mod tests {
             correct_stripped: true,
             duration: 0.0,
             tokens: None,
+            logprob: None,
             failed_patched_code: None,
             error: false,
             patch_commit_hash: "abc123".to_string(),
@@ -618,6 +707,7 @@ mod tests {
         assert_eq!(result.correct_stripped, deserialized.correct_stripped);
         assert_eq!(result.duration, deserialized.duration);
         assert_eq!(result.tokens, deserialized.tokens);
+        assert_eq!(result.logprob, deserialized.logprob);
         assert_eq!(result.failed_patched_code, deserialized.failed_patched_code);
         assert_eq!(result.error, deserialized.error);
         assert_eq!(result.patch_commit_hash, deserialized.patch_commit_hash);

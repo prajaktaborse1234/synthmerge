@@ -8,6 +8,7 @@ pub mod config;
 pub mod conflict_resolver;
 pub mod git_utils;
 pub mod logger;
+mod prob;
 
 // Local Variables:
 // rust-format-on-save: t

@@ -4,6 +4,7 @@
 use crate::api_client::{ApiClient, ApiRequest, ApiResponse};
 use crate::config::{Config, EndpointConfig, EndpointTypeConfig};
 use crate::git_utils::ContextLines;
+use crate::prob;
 use anyhow::Result;
 use futures::future::select_all;
 use std::collections::HashMap;
@@ -30,6 +31,7 @@ pub struct ResolvedConflict {
     pub model: String,
     pub duration: f64,
     pub total_tokens: Option<u64>,
+    pub logprob: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -188,18 +190,58 @@ impl<'a> ConflictResolver<'a> {
                 match result {
                     Ok((result, duration, name, endpoint_index)) => {
                         let duration = duration.as_secs_f64();
+                        let total_tokens: Option<u64> = result
+                            .as_ref()
+                            .map(|r| {
+                                let sum: u64 = r
+                                    .iter()
+                                    .filter_map(|entry| {
+                                        entry.as_ref().ok().and_then(|e| e.total_tokens)
+                                    })
+                                    .sum();
+                                Some(sum)
+                            })
+                            .unwrap_or(None);
+                        let tokens_per_sec_info = total_tokens
+                            .map(|tokens| format!(" {:.1} t/s", tokens as f64 / duration))
+                            .unwrap_or_default();
                         println!(
-                            " - {} completed in {:.2} s{}",
+                            " - {} {:.1} s{}{}",
                             name,
                             duration,
+                            tokens_per_sec_info,
                             result
                                 .as_ref()
-                                .map(|r| r.total_tokens.map(|t| format!(
-                                    " - tokens {} - {:.2} t/s",
-                                    t,
-                                    t as f64 / duration
-                                )))
-                                .unwrap_or_default()
+                                .map(|r| {
+                                    let mut info = String::new();
+                                    for (y, entry) in r.iter().enumerate() {
+                                        let variant_name =
+                                            self.get_variant_name(endpoints, endpoint_index, y);
+                                        if let Ok(entry) = entry {
+                                            let variant_name = variant_name
+                                                .map(|x| format!(" | {x}:"))
+                                                .unwrap_or_default();
+                                            let tokens_info = entry
+                                                .total_tokens
+                                                .map(|tokens| format!(" {} t", tokens))
+                                                .unwrap_or_default();
+                                            let logprob_info = entry
+                                                .logprob
+                                                .map(|logprob| {
+                                                    format!(
+                                                        " {:.1}%",
+                                                        prob::logprob_to_prob(logprob)
+                                                    )
+                                                })
+                                                .unwrap_or_default();
+                                            info.push_str(&format!(
+                                                "{}{}{}",
+                                                variant_name, tokens_info, logprob_info
+                                            ));
+                                        }
+                                    }
+                                    info
+                                })
                                 .unwrap_or_default()
                         );
                         results.push((result, duration, endpoint_index))
@@ -211,7 +253,7 @@ impl<'a> ConflictResolver<'a> {
             self.process_results(
                 &mut resolved_conflicts,
                 &mut resolver_errors,
-                results,
+                &results,
                 conflict,
                 endpoints,
             );
@@ -262,11 +304,34 @@ impl<'a> ConflictResolver<'a> {
         self.get_model_name_z(endpoints, i, y, 0, 0)
     }
 
+    fn get_variant_name(
+        &self,
+        endpoints: &[EndpointConfig],
+        i: usize,
+        y: usize,
+    ) -> Box<Option<String>> {
+        let endpoint = &endpoints[i];
+        match &endpoint.config {
+            EndpointTypeConfig::OpenAI { variants, .. }
+            | EndpointTypeConfig::Anthropic { variants, .. } => {
+                if let Some(variants) = variants {
+                    if let Some(variant) = variants.get(y) {
+                        return variant.name.clone();
+                    } else {
+                        assert!(y == 0);
+                    }
+                }
+                Box::new(None)
+            }
+            EndpointTypeConfig::Patchpal { .. } => Box::new(Some(format!("#{}", y))),
+        }
+    }
+
     fn process_results(
         &self,
         resolved_conflicts: &mut Vec<ResolvedConflict>,
         resolver_errors: &mut ResolverErrors,
-        results: Vec<(Result<ApiResponse>, f64, usize)>,
+        results: &Vec<(Result<ApiResponse>, f64, usize)>,
         conflict: &Conflict,
         endpoints: &[EndpointConfig],
     ) {
@@ -274,7 +339,7 @@ impl<'a> ConflictResolver<'a> {
         for result in results {
             let endpoint_index = result.2;
             let duration = result.1;
-            let result = match result.0 {
+            let result = match &result.0 {
                 Ok(r) => r,
                 Err(e) => {
                     log::warn!(
@@ -286,13 +351,9 @@ impl<'a> ConflictResolver<'a> {
                 }
             };
 
-            let total_tokens = result.total_tokens;
-            let resolved = self.parse_response(result);
-
-            assert!(!resolved.is_empty());
-            for (y, resolved) in resolved.iter().enumerate() {
-                let resolved_strings = match resolved {
-                    Ok(resolved_strings) => resolved_strings,
+            for (y, api_response_entry) in result.iter().enumerate() {
+                let api_response_entry = match api_response_entry {
+                    Ok(api_response_entry) => api_response_entry,
                     Err(e) => {
                         let model = self.get_model_name(endpoints, endpoint_index, y);
                         log::warn!("Skipping {} - {}", model, e);
@@ -301,7 +362,18 @@ impl<'a> ConflictResolver<'a> {
                     }
                 };
 
+                let resolved_strings = match self.parse_response(&api_response_entry.response) {
+                    Ok(resolved_strings) => resolved_strings,
+                    Err(e) => {
+                        let model = self.get_model_name(endpoints, endpoint_index, y);
+                        log::warn!("Skipping {} - {}", model, e);
+                        *resolver_errors.errors.entry(model).or_insert(0) += 1;
+                        continue;
+                    }
+                };
                 assert!(!resolved_strings.is_empty());
+                assert!(!api_response_entry.response.is_empty());
+
                 let mut dups = 0;
                 let mut seen_resolved = std::collections::HashMap::new();
                 for (z, resolved_string) in resolved_strings.iter().enumerate() {
@@ -355,12 +427,15 @@ impl<'a> ConflictResolver<'a> {
                     }
                     seen_resolved.insert(key, model.clone());
 
+                    let total_tokens = api_response_entry.total_tokens;
+                    let logprob = api_response_entry.logprob;
                     resolved_conflicts.push(ResolvedConflict {
                         conflict: conflict.clone(),
                         resolved_version: resolved_content,
                         model,
                         duration,
                         total_tokens,
+                        logprob,
                     });
                 }
             }
@@ -465,67 +540,54 @@ Rewrite the {nr_head_context_lines} line{head_plural} after {code_start} and the
     }
 
     /// Parse the API response into 3 solutions
-    fn parse_response(&self, response: ApiResponse) -> Vec<Result<Vec<String>>> {
+    fn parse_response(&self, response: &String) -> Result<Vec<String>> {
         let start_marker = format!("{}\n", Self::PATCHED_CODE_START);
         let end_marker = Self::PATCHED_CODE_END;
-        let mut all_results = Vec::new();
 
-        for response in response.responses {
-            let response = match response {
-                Ok(response) => response,
-                Err(e) => {
-                    all_results.push(Err(e));
-                    continue;
-                }
-            };
+        log::info!("Response:\n{}", response);
 
-            log::info!("Response:\n{}", response);
+        let mut results = Vec::new();
+        let mut err: Option<Result<Vec<String>, anyhow::Error>> = None;
+        let mut start = 0;
 
-            let mut results = Vec::new();
-            let mut err: Option<Result<Vec<String>, anyhow::Error>> = None;
-            let mut start = 0;
-
-            while let Some(start_pos) = response[start..].find(&start_marker) {
-                let start_pos = start + start_pos;
-                let end_pos = response[start_pos..].find(end_marker);
-                if end_pos.is_none() {
-                    err = Some(Err(anyhow::anyhow!(
-                        "Invalid format: missing {}",
-                        Self::PATCHED_CODE_END
-                    )));
-                    break;
-                }
-
-                let end_pos = start_pos + end_pos.unwrap();
-                if start_pos > end_pos {
-                    err = Some(Err(anyhow::anyhow!(
-                        "Invalid format: {} appears after {}",
-                        Self::PATCHED_CODE_START,
-                        Self::PATCHED_CODE_END
-                    )));
-                    break;
-                }
-
-                let content_start = start_pos + start_marker.len();
-                let content_end = end_pos;
-
-                let content = &response[content_start..content_end];
-                results.push(content.to_string());
-
-                start = end_pos + end_marker.len();
+        while let Some(start_pos) = response[start..].find(&start_marker) {
+            let start_pos = start + start_pos;
+            let end_pos = response[start_pos..].find(end_marker);
+            if end_pos.is_none() {
+                err = Some(Err(anyhow::anyhow!(
+                    "Invalid format: missing {}",
+                    Self::PATCHED_CODE_END
+                )));
+                break;
             }
 
-            if results.is_empty() {
-                let err = match err {
-                    Some(err) => err,
-                    None => Err(anyhow::anyhow!("No code blocks found in response")),
-                };
-                all_results.push(err);
-            } else {
-                all_results.push(Ok(results));
+            let end_pos = start_pos + end_pos.unwrap();
+            if start_pos > end_pos {
+                err = Some(Err(anyhow::anyhow!(
+                    "Invalid format: {} appears after {}",
+                    Self::PATCHED_CODE_START,
+                    Self::PATCHED_CODE_END
+                )));
+                break;
             }
+
+            let content_start = start_pos + start_marker.len();
+            let content_end = end_pos;
+
+            let content = &response[content_start..content_end];
+            results.push(content.to_string());
+
+            start = end_pos + end_marker.len();
         }
-        all_results
+
+        if results.is_empty() {
+            match err {
+                Some(err) => err,
+                None => Err(anyhow::anyhow!("No code blocks found in response")),
+            }
+        } else {
+            Ok(results)
+        }
     }
 }
 

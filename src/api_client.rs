@@ -3,6 +3,7 @@
 
 use crate::config::{EndpointConfig, EndpointJson, EndpointTypeConfig, EndpointVariants};
 use crate::conflict_resolver::{ConflictResolver, Training};
+use crate::prob;
 use anyhow::{Context, Result};
 use reqwest::Certificate;
 use std::fs::File;
@@ -20,11 +21,14 @@ pub struct ApiRequest {
     pub training: Training,
 }
 
-#[derive(Debug)]
-pub struct ApiResponse {
-    pub responses: Vec<Result<String>>,
+#[derive(Clone, Debug)]
+pub struct ApiResponseEntry {
+    pub response: String,
+    pub logprob: Option<f64>,
     pub total_tokens: Option<u64>,
 }
+
+pub type ApiResponse = Vec<Result<ApiResponseEntry>>;
 
 pub struct ApiClient {
     endpoint: EndpointConfig,
@@ -111,8 +115,10 @@ impl ApiClient {
     async fn query_openai(&self, request: &ApiRequest) -> Result<ApiResponse> {
         let headers = self.create_headers(&request.endpoint.api_key_file).await?;
 
-        let variants = match &request.endpoint.config {
-            EndpointTypeConfig::OpenAI { variants, .. } => variants,
+        let (variants, no_chat) = match &request.endpoint.config {
+            EndpointTypeConfig::OpenAI {
+                variants, no_chat, ..
+            } => (variants, no_chat),
             _ => panic!("cannot happen"),
         };
 
@@ -123,17 +129,21 @@ impl ApiClient {
         };
 
         let mut responses = Vec::new();
-        let mut total_tokens: Option<u64> = None;
 
         for variant in variants_list {
             let prompt = self.build_prompt(request, variant);
 
-            let mut payload = serde_json::json!({
+            let mut payload = if !*no_chat {
+                serde_json::json!({
                 "messages": [
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": request.message},
-                ],
-            });
+                ]})
+            } else {
+                serde_json::json!({
+                    "prompt": format!("{}\n\n{}\n\n", prompt, request.message)
+                })
+            };
 
             self.apply_parameters(&mut payload, &request.endpoint.json)?;
             self.apply_parameters(&mut payload, &variant.json)?;
@@ -143,7 +153,7 @@ impl ApiClient {
                     &request.endpoint.url,
                     headers.clone(),
                     &payload,
-                    |response_text: &str| -> Result<ApiResponse> {
+                    |response_text: &str| -> Result<ApiResponseEntry> {
                         // Parse JSON response to extract the content
                         let json_response: serde_json::Value = serde_json::from_str(response_text)
                             .with_context(|| {
@@ -156,6 +166,12 @@ impl ApiClient {
                             .and_then(|choices| choices.get(0))
                             .and_then(|choice| choice.get("message"))
                             .and_then(|message| message.get("content"))
+                            .or_else(|| {
+                                json_response
+                                    .get("choices")
+                                    .and_then(|choices| choices.get(0))
+                                    .and_then(|choice| choice.get("text"))
+                            })
                             .and_then(|content| content.as_str())
                             .with_context(|| {
                                 log::warn!(
@@ -165,37 +181,25 @@ impl ApiClient {
                                 "Failed to extract content from response"
                             })?;
 
+                        let logprob = prob::logprob(&json_response);
+
                         let total_tokens = json_response
                             .get("usage")
                             .and_then(|usage| usage.get("total_tokens"))
                             .and_then(|tokens| tokens.as_u64());
 
-                        Ok(ApiResponse {
-                            responses: vec![Ok(content.to_string())],
+                        Ok(ApiResponseEntry {
+                            response: content.to_string(),
+                            logprob,
                             total_tokens,
                         })
                     },
                 )
                 .await;
-            match result {
-                Ok(result) => {
-                    if let Some(param_total_tokens) = result.total_tokens {
-                        total_tokens = match total_tokens {
-                            Some(tokens) => Some(tokens + param_total_tokens),
-                            None => Some(param_total_tokens),
-                        }
-                    }
-
-                    responses.extend(result.responses);
-                }
-                Err(e) => responses.push(Err(e)),
-            }
+            responses.push(result);
         }
 
-        Ok(ApiResponse {
-            responses,
-            total_tokens,
-        })
+        Ok(responses)
     }
 
     async fn query_anthropic(&self, request: &ApiRequest) -> Result<ApiResponse> {
@@ -213,7 +217,6 @@ impl ApiClient {
         };
 
         let mut responses = Vec::new();
-        let mut total_tokens: Option<u64> = None;
 
         for variant in variants_list {
             let prompt = self.build_prompt(request, variant);
@@ -232,7 +235,7 @@ impl ApiClient {
                     &request.endpoint.url,
                     headers.clone(),
                     &payload,
-                    |response_text: &str| -> Result<ApiResponse> {
+                    |response_text: &str| -> Result<ApiResponseEntry> {
                         // Parse JSON response to extract the content
                         let json_response: serde_json::Value = serde_json::from_str(response_text)
                             .with_context(|| {
@@ -253,37 +256,25 @@ impl ApiClient {
                                 "Failed to extract content from response"
                             })?;
 
+                        let logprob = prob::logprob(&json_response);
+
                         let total_tokens = json_response
                             .get("usage")
                             .and_then(|usage| usage.get("output_tokens"))
                             .and_then(|tokens| tokens.as_u64());
 
-                        Ok(ApiResponse {
-                            responses: vec![Ok(content.to_string())],
+                        Ok(ApiResponseEntry {
+                            response: content.to_string(),
+                            logprob,
                             total_tokens,
                         })
                     },
                 )
                 .await;
-            match result {
-                Ok(result) => {
-                    if let Some(param_total_tokens) = result.total_tokens {
-                        total_tokens = match total_tokens {
-                            Some(tokens) => Some(tokens + param_total_tokens),
-                            None => Some(param_total_tokens),
-                        }
-                    }
-
-                    responses.extend(result.responses);
-                }
-                Err(e) => responses.push(Err(e)),
-            }
+            responses.push(result)
         }
 
-        Ok(ApiResponse {
-            responses,
-            total_tokens,
-        })
+        Ok(responses)
     }
 
     fn build_prompt(&self, request: &ApiRequest, variant: &EndpointVariants) -> String {
@@ -354,17 +345,26 @@ impl ApiClient {
                 .context("Failed to extract content from patchpal response")?
                 .iter()
                 .map(|v| {
-                    v.get(0)
-                        .and_then(|v| v.as_str())
-                        .context("Failed to extract string from patchpal response")
+                    (
+                        v.get(0)
+                            .and_then(|v| v.as_str())
+                            .context("Failed to extract patched code from patchpal response"),
+                        v.get(1)
+                            .and_then(|v| v.as_f64())
+                            .context("Failed to extract logprobs from patchpal response"),
+                    )
                 })
-                .map(|s| -> Result<String> {
-                    Ok(format!(
-                        "{}\n{}{}",
-                        ConflictResolver::PATCHED_CODE_START,
-                        s?,
-                        ConflictResolver::PATCHED_CODE_END
-                    ))
+                .map(|s| -> Result<ApiResponseEntry> {
+                    Ok(ApiResponseEntry {
+                        response: format!(
+                            "{}\n{}{}",
+                            ConflictResolver::PATCHED_CODE_START,
+                            s.0?,
+                            ConflictResolver::PATCHED_CODE_END
+                        ),
+                        logprob: s.1.ok(),
+                        total_tokens: None,
+                    })
                 })
                 .collect();
             if responses.iter().any(Result::is_err) {
@@ -374,25 +374,22 @@ impl ApiClient {
                 );
             }
 
-            Ok(ApiResponse {
-                responses,
-                total_tokens: None,
-            })
+            Ok(responses)
         };
 
         self.retry_request(&request.endpoint.url, headers, &payload, response_handler)
             .await
     }
 
-    async fn retry_request<F>(
+    async fn retry_request<F, R>(
         &self,
         url: &str,
         headers: reqwest::header::HeaderMap,
         payload: &serde_json::Value,
         response_handler: F,
-    ) -> Result<ApiResponse>
+    ) -> Result<R>
     where
-        F: Fn(&str) -> Result<ApiResponse>,
+        F: Fn(&str) -> Result<R>,
     {
         let mut last_error = None;
         let mut delay = Duration::from_millis(self.endpoint.delay);

@@ -2,6 +2,7 @@
 // Copyright (C) 2025  Red Hat, Inc.
 
 use crate::conflict_resolver::{Conflict, ResolvedConflict};
+use crate::prob;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::fs;
@@ -462,10 +463,14 @@ impl GitUtils {
             // Insert the resolved content with markers
             let marker_raw = format!("{} ", Self::create_ai_marker(marker_size));
             let marker = format!(
-                "{}{}: {}\n",
+                "{}{}: {}{}\n",
                 marker_raw,
                 env!("CARGO_PKG_NAME"),
-                conflict.model
+                conflict.model,
+                conflict
+                    .logprob
+                    .map(|p| format!(" {:.1}%", prob::logprob_to_prob(p)))
+                    .unwrap_or_default(),
             );
             let current_line = &lines[insert_line];
             if !current_line.starts_with(&format!("{} ", Self::create_end_marker(marker_size)))
@@ -523,6 +528,22 @@ impl GitUtils {
 
             // Use the first conflict in the group as the base
             let base_conflict = group[0];
+            let total_tokens = if group.iter().any(|c| c.total_tokens.is_some()) {
+                Some(
+                    group.iter().filter_map(|c| c.total_tokens).sum::<u64>()
+                        / group.iter().filter_map(|c| c.total_tokens).count() as u64,
+                )
+            } else {
+                None
+            };
+            let logprob = if group.iter().any(|c| c.logprob.is_some()) {
+                Some(
+                    group.iter().filter_map(|c| c.logprob).sum::<f64>()
+                        / group.iter().filter_map(|c| c.logprob).count() as f64,
+                )
+            } else {
+                None
+            };
             result.push(ResolvedConflict {
                 conflict: base_conflict.conflict.clone(),
                 resolved_version,
@@ -532,7 +553,8 @@ impl GitUtils {
                     .map(|c| c.duration)
                     .max_by(|a, b| a.partial_cmp(b).unwrap())
                     .unwrap_or(0.0),
-                total_tokens: Some(group.iter().map(|c| c.total_tokens.unwrap_or(0)).sum()),
+                total_tokens,
+                logprob,
             });
         }
 

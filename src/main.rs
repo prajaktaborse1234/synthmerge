@@ -12,6 +12,7 @@ mod config;
 mod conflict_resolver;
 mod git_utils;
 mod logger;
+mod prob;
 
 #[derive(Parser, Debug)]
 #[command(version)]
