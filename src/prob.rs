@@ -47,10 +47,10 @@ pub fn logprob(json: &Value) -> Option<f64> {
             };
 
             // Skip empty tokens
-            if let Some(token) = token_value {
-                if token.is_empty() {
-                    continue;
-                }
+            if let Some(token) = token_value
+                && token.is_empty()
+            {
+                continue;
             }
         }
 

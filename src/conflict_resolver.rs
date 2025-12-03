@@ -380,9 +380,10 @@ impl<'a> ConflictResolver<'a> {
                     let model = self.get_model_name_z(endpoints, endpoint_index, y, z, dups);
                     if !resolved_string.starts_with(&conflict.head_context) {
                         log::warn!("Skipping {} - doesn't start with head context", model);
+                        let len = conflict.head_context.len().min(resolved_string.len());
                         let diff = ConflictResolver::create_diff(
                             &conflict.head_context,
-                            &resolved_string[..conflict.head_context.len()],
+                            &resolved_string[..len],
                             1,
                         );
                         log::trace!("HeadContextDiff:\n{}", diff);
@@ -551,7 +552,7 @@ Rewrite the {nr_head_context_lines} line{head_plural} after {code_start} and the
         let mut start = 0;
 
         while let Some(start_pos) = response[start..].find(&start_marker) {
-            let start_pos = start + start_pos;
+            let start_pos = start + start_pos + start_marker.len();
             let end_pos = response[start_pos..].find(end_marker);
             if end_pos.is_none() {
                 err = Some(Err(anyhow::anyhow!(
@@ -562,19 +563,8 @@ Rewrite the {nr_head_context_lines} line{head_plural} after {code_start} and the
             }
 
             let end_pos = start_pos + end_pos.unwrap();
-            if start_pos > end_pos {
-                err = Some(Err(anyhow::anyhow!(
-                    "Invalid format: {} appears after {}",
-                    Self::PATCHED_CODE_START,
-                    Self::PATCHED_CODE_END
-                )));
-                break;
-            }
 
-            let content_start = start_pos + start_marker.len();
-            let content_end = end_pos;
-
-            let content = &response[content_start..content_end];
+            let content = &response[start_pos..end_pos];
             results.push(content.to_string());
 
             start = end_pos + end_marker.len();
