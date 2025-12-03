@@ -249,8 +249,18 @@ impl ApiClient {
                         let content = json_response
                             .get("content")
                             .and_then(|choices| choices.get(0))
-                            .and_then(|choice| choice.get("text"))
-                            .and_then(|content| content.as_str())
+                            .and_then(|choice| {
+                                if let Some(type_val) = choice.get("type").and_then(|v| v.as_str())
+                                {
+                                    if type_val == "text" {
+                                        choice.get("text").and_then(|text| text.as_str())
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            })
                             .with_context(|| {
                                 log::warn!(
                                     "Failed to extract content from response:\n{}",
@@ -263,8 +273,16 @@ impl ApiClient {
 
                         let total_tokens = json_response
                             .get("usage")
-                            .and_then(|usage| usage.get("output_tokens"))
-                            .and_then(|tokens| tokens.as_u64());
+                            .and_then(|usage| usage.get("input_tokens"))
+                            .and_then(|tokens| tokens.as_u64())
+                            .map(|input_tokens| {
+                                input_tokens
+                                    + json_response
+                                        .get("usage")
+                                        .and_then(|usage| usage.get("output_tokens"))
+                                        .and_then(|tokens| tokens.as_u64())
+                                        .unwrap_or(0)
+                            });
 
                         Ok(ApiResponseEntry {
                             response: content.to_string(),
