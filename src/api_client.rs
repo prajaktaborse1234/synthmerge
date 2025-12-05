@@ -2,7 +2,7 @@
 // Copyright (C) 2025  Red Hat, Inc.
 
 use crate::config::{EndpointConfig, EndpointJson, EndpointTypeConfig, EndpointVariants};
-use crate::conflict_resolver::{ConflictResolver, Training};
+use crate::conflict_resolver::ConflictResolver;
 use crate::prob;
 use anyhow::{Context, Result};
 use reqwest::Certificate;
@@ -18,7 +18,7 @@ pub struct ApiRequest {
     pub code: String,
     pub endpoint: EndpointConfig,
     pub git_diff: Option<String>,
-    pub training: Training,
+    pub training: String,
 }
 
 #[derive(Clone, Debug)]

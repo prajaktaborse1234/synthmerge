@@ -34,73 +34,6 @@ pub struct ResolvedConflict {
     pub logprob: Option<f64>,
 }
 
-#[derive(Debug, Clone)]
-pub struct Training {
-    pub prefix: String,
-    pub question: String,
-    pub answer: String,
-}
-
-impl Default for Training {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Training {
-    pub fn new() -> Self {
-        Training {
-            prefix: r#"Learn from the following example:"#.to_string(),
-            question: format!(
-                r#"{patch_start}
-@@ -1,7 +1,7 @@
- 
- extern const struct feature default_feat;
- 
--static inline const struct feature *get_extra_something(struct object *obj)
-+static inline const struct feature *get_special_something(struct device *dev)
- {{
- 	return &default_feat;
- }}
-{patch_end}
-
-{code_start}
-
-extern struct feat feat;
-
-static inline struct feat *get_extra_something(double option, struct device *obj, int param)
- {{	
-	return &feat;
-}}
-{code_end}"#,
-                patch_start = ConflictResolver::PATCH_START,
-                patch_end = ConflictResolver::PATCH_END,
-                code_start = ConflictResolver::CODE_START,
-                code_end = ConflictResolver::CODE_END,
-            ),
-            answer: format!(
-                r#"{patched_code_start}
-
-extern struct feat feat;
-
-static inline struct feat *get_special_something(double option, struct device *dev, int param)
- {{	
-	return &feat;
-}}
-{patched_code_end}"#,
-                patched_code_start = ConflictResolver::PATCHED_CODE_START,
-                patched_code_end = ConflictResolver::PATCHED_CODE_END,
-            ),
-        }
-    }
-}
-
-impl std::fmt::Display for Training {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}\n\n{}\n\n{}", self.prefix, self.question, self.answer)
-    }
-}
-
 pub struct ResolverErrors {
     pub errors: HashMap<String, usize>,
 }
@@ -109,7 +42,7 @@ pub struct ConflictResolver<'a> {
     context_lines: ContextLines,
     config: &'a Config,
     git_diff: Option<String>,
-    training: Training,
+    training: String,
 }
 
 impl<'a> ConflictResolver<'a> {
@@ -126,7 +59,7 @@ impl<'a> ConflictResolver<'a> {
             context_lines,
             config,
             git_diff: Self::__git_diff(git_diff),
-            training: Training::default(),
+            training: Self::create_training(),
         }
     }
 
@@ -490,6 +423,50 @@ Rewrite the {nr_head_context_lines} line{head_plural} after {code_start} and the
             } else {
                 ""
             }
+        )
+    }
+
+    fn create_training() -> String {
+        format!(
+            r#"Learn from the following example:
+
+{patch_start}
+@@ -1,7 +1,7 @@
+ 
+ extern const struct feature default_feat;
+ 
+-static inline const struct feature *get_extra_something(struct object *obj)
++static inline const struct feature *get_special_something(struct device *dev)
+ {{
+ 	return &default_feat;
+ }}
+{patch_end}
+
+{code_start}
+
+extern struct feat feat;
+
+static inline struct feat *get_extra_something(double option, struct device *obj, int param)
+ {{	
+	return &feat;
+}}
+{code_end}
+
+{patched_code_start}
+
+extern struct feat feat;
+
+static inline struct feat *get_special_something(double option, struct device *dev, int param)
+ {{	
+	return &feat;
+}}
+{patched_code_end}"#,
+            patch_start = ConflictResolver::PATCH_START,
+            patch_end = ConflictResolver::PATCH_END,
+            code_start = ConflictResolver::CODE_START,
+            code_end = ConflictResolver::CODE_END,
+            patched_code_start = ConflictResolver::PATCHED_CODE_START,
+            patched_code_end = ConflictResolver::PATCHED_CODE_END,
         )
     }
 
