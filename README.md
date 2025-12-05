@@ -51,7 +51,7 @@
   Each AI endpoint can be configured with multiple parameter variants to run multiple inference strategies:
   - Different reasoning effort levels (high, medium, low)
   - Temperature, top_p, top_k, min_p sampling parameters
-  - Context handling options (context: no_diff: with_system_message: flags)
+  - Context handling options (context: no_diff: with_user_message: flags)
   - Custom JSON parameters that can be injected into the request payload from the YAML configuration (either at the endpoint level or in each variant)
 
 - **Results Deduplication**  
@@ -117,9 +117,9 @@ endpoints:
       - name: "no_diff"
         context:
           no_diff: true
-      #- name: "system"
+      #- name: "userctx"
       #  context:
-      #    with_system_message: true
+      #    with_user_message: true
     # Optional root certificate for HTTPS endpoints
     # root_certificate_pem: "~/.ssl/corp-ca.pem"
 
@@ -146,8 +146,6 @@ endpoints:
   - name: "llama.cpp vulkan minimal" # requires --no-jinja
     url: "http://localhost:8811/v1/chat/completions"
     type: "openai"
-    context:
-      with_system_message: true
 
   - name: "llama.cpp vulkan" # requires --no-jinja
     url: "http://localhost:8811/v1/chat/completions"
@@ -159,8 +157,6 @@ endpoints:
     type: "openai"
     #json:
     #  n_probs: 1
-    context:
-      with_system_message: true
     variants:
       # one query for each entry in the variants list
       - name: "default"

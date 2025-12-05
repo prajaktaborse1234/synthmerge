@@ -428,7 +428,7 @@ Rewrite the {nr_head_context_lines} line{head_plural} after {code_start} and the
 
     fn create_training() -> String {
         format!(
-            r#"Learn from the following example:
+            r#"Learn from the following training example:
 
 {patch_start}
 @@ -1,7 +1,7 @@

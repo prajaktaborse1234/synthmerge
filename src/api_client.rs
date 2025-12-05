@@ -337,19 +337,21 @@ impl ApiClient {
     fn create_chat(&self, request: &ApiRequest, variant: &EndpointVariants) -> Vec<Option<String>> {
         let mut chat = Vec::new();
 
-        if get_context_field!(
+        if !get_context_field!(
             &request.endpoint.context,
             &variant.context,
-            with_system_message
+            with_user_message
         ) {
-            let mut prompt = format!("{}\n\n{}", request.prompt, request.training);
+            let mut prompt = request.prompt.clone();
             if let Some(git_diff) = &request.git_diff
                 && !get_context_field!(&request.endpoint.context, &variant.context, no_diff)
             {
-                prompt = format!("{}\n\n{}", prompt, git_diff)
+                prompt = format!("{}\n\n{}", git_diff, prompt)
             }
+            prompt = format!("{}\n\n{}", request.training, prompt);
             chat.push(Some(prompt));
-            chat.push(Some(request.message.to_string()));
+            let msg = request.message.clone();
+            chat.push(Some(msg));
         } else {
             chat.push(Some(request.prompt.clone()));
             let mut msg = request.message.clone();

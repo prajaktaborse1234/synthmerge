@@ -93,7 +93,7 @@ pub struct EndpointVariants {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct EndpointContext {
     #[serde(default)]
-    pub with_system_message: Option<bool>,
+    pub with_user_message: Option<bool>,
     #[serde(default)]
     pub no_diff: Option<bool>,
 }
@@ -285,7 +285,7 @@ impl Config {
                         endpoint_index,
                         path,
                         j,
-                        with_system_message,
+                        with_user_message,
                         no_diff
                     );
                 }
