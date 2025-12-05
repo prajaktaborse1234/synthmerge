@@ -245,13 +245,15 @@ The following statistics were generated using the `synthmerge_bench` tool on a C
 This measurement used only new test data never exposed to the model during the fine tuning process.
 
 ```
+Claude Sonnet 4.5 and Gemini 3 pro preview not done yet.
+
 Model: Claude Sonnet 4.0 (default)
-  Accuracy: 66.87% (755/1129)
-  Accuracy (aligned): 70.15% (792/1129)
-  Accuracy (stripped): 72.98% (824/1129)
+  Accuracy: 66.70% (753/1129)
+  Accuracy (aligned): 70.42% (795/1129)
+  Accuracy (stripped): 73.34% (828/1129)
   Error Rate: 0.00% (0/1129)
-  Average tokens: 5730.43
-  Average duration: 7.26 s
+  Average tokens: 5730.47
+  Average duration: 7.03 s
 
 # only the Beam 0 is comparable to the non Patchpal models
 Model: Patchpal AI #0
@@ -261,12 +263,12 @@ Model: Patchpal AI #0
   Error Rate: 0.44% (5/1129) # might be duplicate with other beams
 
 Model: Claude Sonnet 4.0 (no_diff)
-  Accuracy: 64.48% (728/1129)
-  Accuracy (aligned): 67.58% (763/1129)
-  Accuracy (stripped): 70.33% (794/1129)
-  Error Rate: 0.35% (4/1129)
-  Average tokens: 1179.90
-  Average duration: 6.24 s
+  Accuracy: 65.19% (736/1129)
+  Accuracy (aligned): 68.29% (771/1129)
+  Accuracy (stripped): 71.48% (807/1129)
+  Error Rate: 0.00% (0/1129)
+  Average tokens: 1184.14
+  Average duration: 6.34 s
 
 Model: Gemini 2.5 pro (high) # reasoning_effort: high
   Accuracy: 55.18% (623/1129)
@@ -289,18 +291,22 @@ Model: Gemini 2.5 pro (low no_diff)
 # temperature: 0.7 top_k: 20 top_p: 0.8 min_p: 0
 # llama.cpp vulkan Q6_K
 Model: Qwen3-Coder-30B-A3B-Instruct (default)
-  Accuracy: 48.54% (548/1129)
-  Accuracy (aligned): 52.97% (598/1129)
-  Accuracy (stripped): 55.89% (631/1129)
-  Error Rate: 0.00% (0/1129)
+  Accuracy: 48.72% (550/1129)
+  Accuracy (aligned): 53.32% (602/1129)
+  Accuracy (stripped): 56.07% (633/1129)
+  Error Rate: 0.27% (3/1129)
+  Average tokens: 4258.48
+  Average duration: 9.85 s
 
 # temperature: 0.7 top_k: 20 top_p: 0.8 min_p: 0
 # llama.cpp vulkan Q6_K
 Model: Qwen3-Coder-30B-A3B-Instruct (no_diff)
-  Accuracy: 45.88% (518/1129)
-  Accuracy (aligned): 50.13% (566/1129)
-  Accuracy (stripped): 53.59% (605/1129)
-  Error Rate: 0.00% (0/1129)
+  Accuracy: 46.50% (525/1129)
+  Accuracy (aligned): 50.84% (574/1129)
+  Accuracy (stripped): 53.76% (607/1129)
+  Error Rate: 0.09% (1/1129)
+  Average tokens: 902.49
+  Average duration: 4.46 s
 
 # if Beam 0 is wrong, Beam 1 is right 10.54% of the time
 Model: Patchpal AI #1
@@ -309,12 +315,22 @@ Model: Patchpal AI #1
   Accuracy (stripped): 30.03% (339/1129) # might be duplicate with other beams
   Error Rate: 0.53% (6/1129) # might be duplicate with other beams
 
+Model: Qwen3-Coder-30B-A3B-Instruct (default) # perplexity beam #1
+  Accuracy: 6.31% (71/1125)
+  Accuracy (aligned): 10.40% (117/1125)
+  Accuracy (stripped): 16.71% (188/1125)
+
 # if Beam 0 and Beam 1 are wrong, Beam 2 is right 3.37% of the time
 Model: Patchpal AI #2
   Accuracy: 3.37% (38/1129)
   Accuracy (aligned): 16.21% (183/1129) # might be duplicate with other beams
   Accuracy (stripped): 23.83% (269/1129) # might be duplicate with other beams
   Error Rate: 0.44% (5/1129) # might be duplicate with other beams
+
+Model: Qwen3-Coder-30B-A3B-Instruct (default) # perplexity beam #2
+  Accuracy: 1.72% (19/1103)
+  Accuracy (aligned): 6.35% (70/1103)
+  Accuracy (stripped): 10.79% (119/1103)
 ```
 
 ---
