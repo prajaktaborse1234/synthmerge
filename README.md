@@ -51,7 +51,7 @@
   Each AI endpoint can be configured with multiple parameter variants to run multiple inference strategies:
   - Different reasoning effort levels (high, medium, low)
   - Temperature, top_p, top_k, min_p sampling parameters
-  - Context handling options (context: no_diff: flag)
+  - Context handling options (context: no_diff: with_system_message: flags)
   - Custom JSON parameters that can be injected into the request payload from the YAML configuration (either at the endpoint level or in each variant)
 
 - **Results Deduplication**  
@@ -65,6 +65,10 @@
   - When one model fails to resolve a conflict, Git's original conflict remains alongside solutions from other models for that hunk
   - Each AI endpoint can be configured with timeout, delay, and max_delay parameters
   - Custom root certificates can be added to the endpoint configuration
+  - Wait time between requests can be specified per endpoint
+
+- **Benchmark**  
+  Built-in benchmarking tool (`synthmerge_bench`) for evaluating model accuracy on conflict resolution tasks
 
 ---
 
@@ -100,44 +104,6 @@ Create `~/.config/synthmerge.yaml` based on `synthmerge.yaml`:
 ```yaml
 endpoints:
 
-  - name: "Patchpal AI"
-    type: "patchpal"
-    url: "http://patchpal.usersys.redhat.com:9080/v1"
-    #timeout: 600000
-    #retries: 10
-    #delay: 1000
-    #max_delay: 600000
-
-  - name: "llama.cpp vulkan simple"
-    url: "http://localhost:8811/v1/chat/completions"
-    type: "openai"
-    #context:
-    #  no_diff: true
-
-  - name: "llama.cpp vulkan"
-    url: "http://localhost:8811/v1/chat/completions"
-    type: "openai"
-    variants:
-      # one query for each entry in the variants list
-      - name: "default"
-      #- name: "min_p"
-      #  json:
-      #    temperature: 0.3
-      #    top_p: 1.0
-      #    top_k: 0
-      #    min_p: 0.9
-      - name: "no_diff"
-        context:
-          no_diff: true
-    
-  - name: "Gemini 3 pro preview"
-    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-    type: "openai"
-    api_key_file: "~/.gemini.api-key"
-    json:
-      model: "gemini-3-pro-preview"
-      reasoning_effort: "low"
-
   - name: "Claude Sonnet 4.0"
     url: "https://host/path"
     type: "anthropic"
@@ -151,8 +117,67 @@ endpoints:
       - name: "no_diff"
         context:
           no_diff: true
+      #- name: "system"
+      #  context:
+      #    with_system_message: true
     # Optional root certificate for HTTPS endpoints
     # root_certificate_pem: "~/.ssl/corp-ca.pem"
+
+  - name: "Patchpal AI"
+    type: "patchpal"
+    url: "http://patchpal.usersys.redhat.com:9080/v1"
+
+  - name: "Gemini 3 pro preview"
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    type: "openai"
+    api_key_file: "~/.gemini.api-key"
+    json:
+      model: "gemini-3-pro-preview"
+      reasoning_effort: "low"
+
+  - name: "Gemini 2.5 pro"
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    type: "openai"
+    api_key_file: "~/.gemini.api-key"
+    json:
+      model: "gemini-2.5-pro"
+      reasoning_effort: "low"
+
+  - name: "llama.cpp vulkan minimal" # requires --no-jinja
+    url: "http://localhost:8811/v1/chat/completions"
+    type: "openai"
+    context:
+      with_system_message: true
+
+  - name: "llama.cpp vulkan" # requires --no-jinja
+    url: "http://localhost:8811/v1/chat/completions"
+    #timeout: 600000
+    #retries: 10
+    #delay: 1000
+    #max_delay: 600000
+    #wait: 1000
+    type: "openai"
+    #json:
+    #  n_probs: 1
+    context:
+      with_system_message: true
+    variants:
+      # one query for each entry in the variants list
+      - name: "default"
+      - name: "no_diff"
+        context:
+          no_diff: true
+      #- name: "min_p"
+      #  json:
+      #    temperature: 0.3
+      #    top_p: 1.0
+      #    top_k: 0
+      #    min_p: 0.9
+
+  - name: "llama.cpp vulkan no_chat"
+    url: "http://localhost:8811/v1/completions"
+    type: "openai"
+    no_chat: true
 ```
 
 ---
@@ -202,7 +227,7 @@ The following statistics were generated using the `synthmerge_bench` tool on a C
 
 **Accuracy (stripped)** compresses all whitespaces and newlines into a single space (i.e. C/C++/Rust/JavaScript equivalence).
 
-The probability that at least one of the three differnt PatchPal beams is exact (not ignoring  whitespace differences) is: 66.33% + 11.25% + 2.92% = 80.5%. This measurement used only new test data never exposed to the model during the fine tuning process.
+This measurement used only new test data never exposed to the model during the fine tuning process.
 
 ```
 Model: Claude Sonnet 4.0 (default)
