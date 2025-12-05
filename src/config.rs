@@ -49,6 +49,23 @@ fn default_max_delay() -> u64 {
     600000
 }
 
+macro_rules! check_conflicting_context_fields {
+    ($endpoint_context:expr, $variant_context:expr, $variant_name:expr, $endpoint_index:expr, $path:expr, $j:expr, $($field:ident),*) => {
+        $(
+            if $endpoint_context.$field.is_some() && $variant_context.$field.is_some() {
+                return Err(anyhow::anyhow!(
+                    "Endpoint {} in config file {} has conflicting context configuration in variant {} at index {}: {} is defined in both endpoint and variant",
+                    $endpoint_index,
+                    $path.display(),
+                    $variant_name,
+                    $j,
+                    stringify!($field)
+                ));
+            }
+        )*
+    };
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum EndpointTypeConfig {
@@ -76,7 +93,9 @@ pub struct EndpointVariants {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct EndpointContext {
     #[serde(default)]
-    pub no_diff: bool,
+    pub with_system_message: Option<bool>,
+    #[serde(default)]
+    pub no_diff: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -253,13 +272,22 @@ impl Config {
                         }
                     }
                 }
-                // Check that if endpoint.context.is_some() then each variant.context.is_some() == false
-                if endpoint_context.is_some() && variant.context.is_some() {
-                    return Err(anyhow::anyhow!(
-                        "Endpoint {} in config file {} has context defined at endpoint level, so all variants must not have context defined",
+                // Check if endpoint.context.is_some() and variant.context.is_some(),
+                // then a field can be Some only in either the endpoint.context or the
+                // variant.context but not in both
+                if let (Some(endpoint_context), Some(variant_context)) =
+                    (&endpoint_context, &variant.context)
+                {
+                    check_conflicting_context_fields!(
+                        endpoint_context,
+                        variant_context,
+                        variant.name.clone().unwrap_or("\"\"".to_string()),
                         endpoint_index,
-                        path.display()
-                    ));
+                        path,
+                        j,
+                        with_system_message,
+                        no_diff
+                    );
                 }
             }
         }
@@ -279,12 +307,14 @@ mod tests {
     fn test_config_loading() {
         let config_yaml = include_str!(concat!("../", env!("CARGO_PKG_NAME"), ".yaml"));
         let config: Config = serde_yaml::from_str(config_yaml).unwrap();
-        assert_eq!(config.endpoints.len(), 5);
-        assert_eq!(config.endpoints[0].name, "Patchpal AI");
-        assert_eq!(config.endpoints[1].name, "llama.cpp vulkan simple");
-        assert_eq!(config.endpoints[2].name, "llama.cpp vulkan");
-        assert_eq!(config.endpoints[3].name, "Gemini 3 pro preview");
-        assert_eq!(config.endpoints[4].name, "Claude Sonnet 4.0");
+        assert_eq!(config.endpoints.len(), 7);
+        assert_eq!(config.endpoints[0].name, "Claude Sonnet 4.0");
+        assert_eq!(config.endpoints[1].name, "Patchpal AI");
+        assert_eq!(config.endpoints[2].name, "Gemini 3 pro preview");
+        assert_eq!(config.endpoints[3].name, "Gemini 2.5 pro");
+        assert_eq!(config.endpoints[4].name, "llama.cpp vulkan minimal");
+        assert_eq!(config.endpoints[5].name, "llama.cpp vulkan");
+        assert_eq!(config.endpoints[6].name, "llama.cpp vulkan no_chat");
     }
 }
 

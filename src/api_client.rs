@@ -28,6 +28,14 @@ pub struct ApiResponseEntry {
     pub total_tokens: Option<u64>,
 }
 
+macro_rules! get_context_field {
+    ($endpoint_context:expr, $variant_context:expr, $field:ident) => {{
+        let endpoint_value = $endpoint_context.as_ref().and_then(|ctx| ctx.$field);
+        let variant_value = $variant_context.as_ref().and_then(|ctx| ctx.$field);
+        endpoint_value.or(variant_value).unwrap_or(false)
+    }};
+}
+
 pub type ApiResponse = Vec<Result<ApiResponseEntry>>;
 
 pub struct ApiClient {
@@ -131,18 +139,38 @@ impl ApiClient {
         let mut responses = Vec::new();
 
         for variant in variants_list {
-            let prompt = self.build_prompt(request, variant);
-            let message = self.build_message(request, variant);
-
+            let chat = self.create_chat(request, variant);
             let mut payload = if !*no_chat {
-                serde_json::json!({
-                "messages": [
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": message},
-                ]})
+                let mut payload = serde_json::json!({
+                            "messages": [],
+                });
+                let messages = payload["messages"].as_array_mut().unwrap();
+                for (i, msg) in chat.iter().enumerate().filter(|(_, s)| s.is_some()) {
+                    let role = if i == 0 {
+                        "system"
+                    } else if i % 2 == 1 {
+                        "user"
+                    } else {
+                        "assistant"
+                    };
+                    messages.push(serde_json::json!({
+                        "role": role,
+                        "content": msg
+                    }));
+                }
+                payload
             } else {
+                let prompt = chat
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, s)| s.is_some())
+                    //.filter(|(i, s)| s.is_some() && (*i == 0 || i % 2 == 1))
+                    .map(|(_, s)| s.as_ref().unwrap().clone())
+                    .collect::<Vec<_>>()
+                    .join("\n\n")
+                    + "\n\n";
                 serde_json::json!({
-                    "prompt": format!("{}\n\n{}\n\n", prompt, request.message)
+                    "prompt": prompt
                 })
             };
 
@@ -220,15 +248,20 @@ impl ApiClient {
         let mut responses = Vec::new();
 
         for variant in variants_list {
-            let prompt = self.build_prompt(request, variant);
-            let message = self.build_message(request, variant);
+            let chat = self.create_chat(request, variant);
 
             let mut payload = serde_json::json!({
-                "system": prompt,
-                "messages": [
-                    {"role": "user", "content": [{"type": "text",
-                      "text": message}]}, ],
+                "system": chat[0],
+                "messages": [],
             });
+            let messages = payload["messages"].as_array_mut().unwrap();
+            for (i, msg) in chat[1..].iter().enumerate().filter(|(_, s)| s.is_some()) {
+                let role = if i % 2 == 0 { "user" } else { "assistant" };
+                messages.push(serde_json::json!({
+                    "role": role,
+                    "content": [{"type": "text", "text": msg}]
+                }));
+            }
 
             self.apply_parameters(&mut payload, &request.endpoint.json)?;
             self.apply_parameters(&mut payload, &variant.json)?;
@@ -298,28 +331,44 @@ impl ApiClient {
         Ok(responses)
     }
 
-    fn build_prompt<'a>(&self, request: &'a ApiRequest, _variant: &EndpointVariants) -> &'a String {
-        log::debug!("Prompt:\n{}", request.prompt);
-        &request.prompt
-    }
+    fn create_chat(&self, request: &ApiRequest, variant: &EndpointVariants) -> Vec<Option<String>> {
+        let mut chat = Vec::new();
 
-    fn build_message(&self, request: &ApiRequest, variant: &EndpointVariants) -> String {
-        let context = if request.endpoint.context.is_some() {
-            &request.endpoint.context
+        if get_context_field!(
+            &request.endpoint.context,
+            &variant.context,
+            with_system_message
+        ) {
+            let mut prompt = format!("{}\n\n{}", request.prompt, request.training);
+            if let Some(git_diff) = &request.git_diff
+                && !get_context_field!(&request.endpoint.context, &variant.context, no_diff)
+            {
+                prompt = format!("{}\n\n{}", prompt, git_diff)
+            }
+            chat.push(Some(prompt));
+            chat.push(Some(request.message.to_string()));
         } else {
-            &variant.context
-        };
-
-        let mut message = request.training.to_string();
-        if let Some(git_diff) = &request.git_diff
-            && !context.as_ref().map(|x| x.no_diff).unwrap_or(false)
-        {
-            message = format!("{}\n\n{}", message, git_diff);
+            chat.push(Some(request.prompt.clone()));
+            let mut msg = request.message.clone();
+            if let Some(git_diff) = &request.git_diff
+                && !get_context_field!(&request.endpoint.context, &variant.context, no_diff)
+            {
+                msg = format!("{}\n\n{}", git_diff, msg)
+            }
+            msg = format!("{}\n\n{}", request.training, msg);
+            chat.push(Some(msg));
         }
-        message = format!("{}\n\n{}", message, request.message);
 
-        log::info!("Message:\n{}", message);
-        message
+        log::debug!(
+            "{}",
+            chat.iter()
+                .enumerate()
+                .filter(|(_, s)| s.is_some())
+                .map(|(i, s)| format!("Chat[{}]:\n{}", i, s.as_ref().unwrap()))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        chat
     }
 
     fn apply_parameters(
