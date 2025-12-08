@@ -153,6 +153,11 @@ endpoints:
     json:
       model: "gemini-2.5-flash"
       reasoning_effort: "none"
+    variants:
+      - name: "default"
+      - name: "no_diff"
+        context:
+          no_diff: true
 
   - name: "Gemini 2.5 Pro"
     url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -161,6 +166,11 @@ endpoints:
     json:
       model: "gemini-2.5-pro"
       reasoning_effort: "low"
+    variants:
+      - name: "default"
+      - name: "no_diff"
+        context:
+          no_diff: true
 
   - name: "Gemini 3 Pro preview"
     url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -169,6 +179,11 @@ endpoints:
     json:
       model: "gemini-3-pro-preview"
       reasoning_effort: "low"
+    variants:
+      - name: "default"
+      - name: "no_diff"
+        context:
+          no_diff: true
 
   - name: "llama.cpp vulkan minimal" # requires --no-jinja
     url: "http://localhost:8811/v1/chat/completions"
@@ -182,8 +197,21 @@ endpoints:
     #max_delay: 600000
     #wait: 1000
     type: "openai"
-    #json:
-    #  n_probs: 1
+    json:
+      #temperature: 0.7
+      #top_p: 0.8
+      #top_k: 20
+      #min_p: 0
+
+      # n_probs: 1 provides the probability of the lowest probability
+      # token in the resolved conflict
+      #n_probs: 1
+
+      # n_probs: 2 same as n_probs: 1 but it also provides two more
+      # beams with the perplexity search algorithm of synthmerge
+      # applied to the logprobs, which is a client side only
+      # approximated beam search
+      n_probs: 2
     variants:
       # one query for each entry in the variants list
       - name: "default"
@@ -197,7 +225,7 @@ endpoints:
       #    top_k: 0
       #    min_p: 0.9
 
-  - name: "llama.cpp vulkan no_chat"
+  - name: "llama.cpp vulkan no_chat" # requires --no-jinja
     url: "http://localhost:8811/v1/completions"
     type: "openai"
     no_chat: true
