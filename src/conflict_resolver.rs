@@ -166,7 +166,7 @@ impl<'a> ConflictResolver<'a> {
                         .map(|x| info.push_str(&format!(" | {x}")));
                     for (beam, entry) in variants.iter().enumerate() {
                         if let Ok(entry) = entry {
-                            let beam = if variants.len() > 1 {
+                            let beam = if beam > 0 {
                                 format!(" ~ #{beam}")
                             } else {
                                 String::new()
@@ -207,7 +207,7 @@ impl<'a> ConflictResolver<'a> {
         endpoints: &[EndpointConfig],
         endpoint: usize,
         variant: usize,
-        beam: Option<usize>,
+        beam: usize,
         multi: usize,
     ) -> String {
         let variant_name = self.get_variant_name(endpoints, endpoint, variant);
@@ -218,7 +218,7 @@ impl<'a> ConflictResolver<'a> {
             name.push_str(" (");
             name.push_str(&variant_name);
         }
-        if let Some(beam) = beam {
+        if beam > 0 {
             if !open {
                 open = true;
                 name.push_str(" (");
@@ -244,7 +244,7 @@ impl<'a> ConflictResolver<'a> {
         endpoint: usize,
         variant: usize,
     ) -> String {
-        self.get_model_name_multi(endpoints, endpoint, variant, None, 0)
+        self.get_model_name_multi(endpoints, endpoint, variant, 0, 0)
     }
 
     fn get_variant_name(
@@ -315,19 +315,8 @@ impl<'a> ConflictResolver<'a> {
 
                     let mut seen_resolved = std::collections::HashMap::new();
                     for (multi, resolved_string) in resolved_strings.iter().enumerate() {
-                        let model = self.get_model_name_multi(
-                            endpoints,
-                            endpoint,
-                            variant,
-                            {
-                                if api_response_variant.len() > 1 {
-                                    Some(beam)
-                                } else {
-                                    None
-                                }
-                            },
-                            multi,
-                        );
+                        let model =
+                            self.get_model_name_multi(endpoints, endpoint, variant, beam, multi);
                         if !resolved_string.starts_with(&conflict.head_context) {
                             log::warn!("Skipping {} - doesn't start with head context", model);
                             let len = conflict.head_context.len().min(resolved_string.len());
