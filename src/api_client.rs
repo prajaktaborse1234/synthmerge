@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later OR AGPL-3.0-or-later
 // Copyright (C) 2025  Red Hat, Inc.
 
-use crate::config::{EndpointConfig, EndpointJson, EndpointTypeConfig, EndpointVariants};
+use crate::config::{
+    EndpointConfig, EndpointContextElement, EndpointContextLayout, EndpointJson,
+    EndpointTypeConfig, EndpointVariants,
+};
 use crate::conflict_resolver::ConflictResolver;
 use crate::prob;
 use anyhow::{Context, Result};
@@ -29,10 +32,12 @@ pub struct ApiResponseEntry {
 }
 
 macro_rules! get_context_field {
-    ($endpoint_context:expr, $variant_context:expr, $field:ident) => {{
-        let endpoint_value = $endpoint_context.as_ref().and_then(|ctx| ctx.$field);
-        let variant_value = $variant_context.as_ref().and_then(|ctx| ctx.$field);
-        endpoint_value.or(variant_value).unwrap_or(false)
+    ($endpoint_context:expr, $variant_context:expr, $field:ident, $default:expr) => {{
+        let endpoint_value = $endpoint_context
+            .as_ref()
+            .and_then(|context| context.$field.clone());
+        let variant_value = $variant_context.as_ref().and_then(|ctx| ctx.$field.clone());
+        endpoint_value.or(variant_value).unwrap_or($default)
     }};
 }
 
@@ -400,28 +405,61 @@ impl ApiClient {
     fn create_chat(&self, request: &ApiRequest, variant: &EndpointVariants) -> Vec<Option<String>> {
         let mut chat = Vec::new();
 
-        if !get_context_field!(&self.endpoint.context, &variant.context, with_user_message) {
-            let mut prompt = request.prompt.clone();
-            if let Some(git_diff) = &request.git_diff
-                && !get_context_field!(&self.endpoint.context, &variant.context, no_diff)
-            {
-                prompt = format!("{}\n\n{}", git_diff, prompt)
+        let layout = get_context_field!(
+            &self.endpoint.context,
+            &variant.context,
+            layout,
+            EndpointContextLayout::default()
+        );
+        let no_diff = get_context_field!(&self.endpoint.context, &variant.context, no_diff, false);
+        let no_training =
+            get_context_field!(&self.endpoint.context, &variant.context, no_training, false);
+        let mut system_message = String::new();
+        let mut user_message = String::new();
+
+        let push = |s: &mut String, text: &str, need_newline: &mut bool| {
+            if *need_newline {
+                s.push_str("\n\n");
+            } else {
+                *need_newline = true;
             }
-            prompt = format!("{}\n\n{}", request.training, prompt);
-            chat.push(Some(prompt));
-            let msg = request.message.clone();
-            chat.push(Some(msg));
-        } else {
-            chat.push(Some(request.prompt.clone()));
-            let mut msg = request.message.clone();
-            if let Some(git_diff) = &request.git_diff
-                && !get_context_field!(&self.endpoint.context, &variant.context, no_diff)
-            {
-                msg = format!("{}\n\n{}", git_diff, msg)
+            s.push_str(text);
+        };
+
+        for (message, context) in [
+            (&mut system_message, layout.system_message),
+            (&mut user_message, layout.user_message),
+        ] {
+            let mut need_newline = false;
+            for element in context.into_iter() {
+                match element {
+                    EndpointContextElement::Prompt => {
+                        push(message, &request.prompt, &mut need_newline)
+                    }
+                    EndpointContextElement::Training => {
+                        if !no_training {
+                            push(message, &request.training, &mut need_newline)
+                        }
+                    }
+                    EndpointContextElement::Diff => {
+                        if !no_diff && let Some(git_diff) = &request.git_diff {
+                            push(message, git_diff, &mut need_newline)
+                        }
+                    }
+                }
             }
-            msg = format!("{}\n\n{}", request.training, msg);
-            chat.push(Some(msg));
+            assert!(!message.contains("\n\n\n"));
+            assert!(!message.chars().next().is_some_and(char::is_whitespace));
+            assert!(!message.chars().last().is_some_and(char::is_whitespace));
         }
+
+        if !user_message.is_empty() {
+            user_message.push_str("\n\n");
+        }
+        user_message.push_str(&request.message);
+
+        chat.push(Some(system_message));
+        chat.push(Some(user_message));
 
         log::debug!(
             "{}",

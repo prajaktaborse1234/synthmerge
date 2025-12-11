@@ -51,7 +51,7 @@
   Each AI endpoint can be configured with multiple parameter variants to run multiple inference strategies:
   - Different reasoning effort levels (high, medium, low)
   - Temperature, top_p, top_k, min_p sampling parameters
-  - Context handling options (context: no_diff: with_user_message: flags)
+  - Context handling options (context: no_diff: no_training: layout: flags)
   - Custom JSON parameters that can be injected into the request payload from the YAML configuration (either at the endpoint level or in each variant)
 
 - **Results Deduplication**  
@@ -121,7 +121,12 @@ endpoints:
           no_diff: true
       #- name: "userctx"
       #  context:
-      #    with_user_message: true
+      #    layout:
+      #      system_message:
+      #        - prompt
+      #      user_message:
+      #        - training
+      #        - diff
 
   - name: "Vertex Claude Sonnet 4.0"
     url: "https://host/path"
@@ -138,7 +143,12 @@ endpoints:
           no_diff: true
       #- name: "userctx"
       #  context:
-      #    with_user_message: true
+      #    layout:
+      #      system_message:
+      #        - prompt
+      #      user_message:
+      #        - training
+      #        - diff
     # Optional root certificate for HTTPS endpoints
     # root_certificate_pem: "~/.ssl/corp-ca.pem"
 
@@ -166,6 +176,14 @@ endpoints:
     json:
       model: "gemini-2.5-pro"
       reasoning_effort: "low"
+    context:
+      # gemini reasoning_effort != none needs the prompt at the top of system_message
+      layout:
+        system_message:
+          - prompt
+        user_message:
+          - training
+          - diff
     variants:
       - name: "default"
       - name: "no_diff"
@@ -179,6 +197,13 @@ endpoints:
     json:
       model: "gemini-3-pro-preview"
       reasoning_effort: "low"
+    context:
+      layout:
+        system_message:
+          - prompt
+        user_message:
+          - training
+          - diff
     variants:
       - name: "default"
       - name: "no_diff"
@@ -229,6 +254,8 @@ endpoints:
     url: "http://localhost:8811/v1/completions"
     type: "openai"
     no_chat: true
+    context:
+      no_training: true
 ```
 
 ---

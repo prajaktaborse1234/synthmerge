@@ -17,7 +17,12 @@ endpoints:
           no_diff: true
       #- name: "userctx"
       #  context:
-      #    with_user_message: true
+      #    layout:
+      #      system_message:
+      #        - prompt
+      #      user_message:
+      #        - training
+      #        - diff
 
   - name: "Vertex Claude Sonnet 4.0"
     url: "https://host/path"
@@ -34,14 +39,18 @@ endpoints:
           no_diff: true
       #- name: "userctx"
       #  context:
-      #    with_user_message: true
+      #    layout:
+      #      system_message:
+      #        - prompt
+      #      user_message:
+      #        - training
+      #        - diff
     # Optional root certificate for HTTPS endpoints
     # root_certificate_pem: "~/.ssl/corp-ca.pem"
 
   - name: "Patchpal AI"
     type: "patchpal"
     url: "http://patchpal.usersys.redhat.com:9080/v1"
-    #telemetry: true # disabled by default
 
   - name: "Gemini 2.5 Flash"
     url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -49,6 +58,7 @@ endpoints:
     api_key_file: "~/.keys/gemini.api-key"
     json:
       model: "gemini-2.5-flash"
+      # "none" (only available with Flash) works better with default layout
       reasoning_effort: "none"
     variants:
       - name: "default"
@@ -63,6 +73,14 @@ endpoints:
     json:
       model: "gemini-2.5-pro"
       reasoning_effort: "low"
+    context:
+      # pro needs the prompt at the top of system_message
+      layout:
+        system_message:
+          - prompt
+        user_message:
+          - training
+          - diff
     variants:
       - name: "default"
       - name: "no_diff"
@@ -76,6 +94,13 @@ endpoints:
     json:
       model: "gemini-3-pro-preview"
       reasoning_effort: "low"
+    context:
+      layout:
+        system_message:
+          - prompt
+        user_message:
+          - training
+          - diff
     variants:
       - name: "default"
       - name: "no_diff"
@@ -126,3 +151,5 @@ endpoints:
     url: "http://localhost:8811/v1/completions"
     type: "openai"
     no_chat: true
+    context:
+      no_training: true

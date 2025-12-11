@@ -95,13 +95,54 @@ pub struct EndpointVariants {
     pub json: Option<EndpointJson>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EndpointContext {
     #[serde(default)]
-    pub with_user_message: Option<bool>,
+    pub layout: Option<EndpointContextLayout>,
     #[serde(default)]
     pub no_diff: Option<bool>,
+    #[serde(default)]
+    pub no_training: Option<bool>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EndpointContextLayout {
+    #[serde(default)]
+    pub system_message: Vec<EndpointContextElement>,
+    #[serde(default)]
+    pub user_message: Vec<EndpointContextElement>,
+}
+
+impl Default for EndpointContextLayout {
+    fn default() -> Self {
+        EndpointContextLayout {
+            system_message: vec![
+                EndpointContextElement::Training,
+                EndpointContextElement::Diff,
+                EndpointContextElement::Prompt,
+            ],
+            user_message: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum EndpointContextElement {
+    Prompt,
+    Training,
+    Diff,
+}
+
+// impl EndpointContextElement {
+//     fn to_string(&self) -> &'static str {
+//         match self {
+//             EndpointContextElement::Prompt => "prompt",
+//             EndpointContextElement::Training => "training",
+//             EndpointContextElement::Diff => "diff",
+//         }
+//     }
+//}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EndpointJson {
@@ -283,7 +324,7 @@ impl Config {
                         }
                     }
                 }
-                // Check if endpoint.context.is_some() and variant.context.is_some(),
+                // Check if endpoint_context.is_some() and variant.context.is_some(),
                 // then a field can be Some only in either the endpoint.context or the
                 // variant.context but not in both
                 if let (Some(endpoint_context), Some(variant_context)) =
@@ -296,8 +337,9 @@ impl Config {
                         endpoint_index,
                         path,
                         j,
-                        with_user_message,
-                        no_diff
+                        layout,
+                        no_diff,
+                        no_training
                     );
                 }
             }
