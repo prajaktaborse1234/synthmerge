@@ -495,6 +495,27 @@ impl Bench {
             self.results.len()
         );
 
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        tokio::spawn(async move {
+            loop {
+                let exit_code;
+                let mut sigterm =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .unwrap();
+                tokio::select! {
+                   _ = tokio::signal::ctrl_c() => {
+                       exit_code = 130;
+                   }
+                   _ = sigterm.recv() => {
+                       exit_code = 143;
+                   }
+                }
+                tx.try_send(exit_code)
+                    .unwrap_or_else(|_| std::process::exit(exit_code));
+                println!("Saving checkpoint and exiting...");
+            }
+        });
+
         let mut modified = false;
         for (i, entry) in entries
             .iter()
@@ -598,6 +619,10 @@ impl Bench {
             };
 
             modified = true;
+            if let Ok(exit_code) = rx.try_recv() {
+                self.save_checkpoint(&args)?;
+                std::process::exit(exit_code);
+            }
             // Save checkpoint periodically
             if (i + 1) % args.checkpoint_interval == 0 {
                 self.save_checkpoint(&args)?;
