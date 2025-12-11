@@ -70,6 +70,9 @@
 - **Benchmark**  
   Built-in benchmarking tool (`synthmerge_bench`) for evaluating model accuracy on conflict resolution tasks
 
+- **Context Lines Configuration**  
+  Configurable context lines for code, diff, and patch to control the amount of surrounding information provided to AI models
+
 ---
 
 ## 🛠 How It Works
@@ -277,6 +280,45 @@ rg-edit -E emacsclient -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
 
 > ✅ **Gemini supports a compatible OpenAI endpoint**  
 > ✅ **Models work with stock weights** – the prompt engineering simulates Patchpal's fine-tuned behavior.
+
+---
+
+## 📊 Context Layout Configuration
+
+The `context: layout:` configuration allows fine-grained control over how information is structured in a LLM request.
+
+- **Prompt placement**: All models tested so far (including Gemini 2.5 Flash with `reasoning_effort: none`) perform best when the most important directives are closest to the generation
+- **Gemini thinking models exception**: Gemini models with `reasoning_effort != none` require the prompt explaining the challenge at hand to be at the top of the system message
+- **Layout flexibility**: The layout configuration enables each model to select the optimal information structure
+
+### Available layout elements:
+- `prompt`: The high-level prompt explaining the challenge
+- `training`: The synthetic training examples
+- `diff`: The full git diff showing all other changes of the commit
+
+### Context control flags:
+- `no_diff`: Disable diff inclusion in context
+- `no_training`: Disable training examples in context
+
+### Configuration examples:
+```yaml
+# Set layout at endpoint level
+context:
+  layout:
+    system_message:
+      - prompt
+    user_message:
+      - training
+      - diff
+
+# Override layout in a variant
+variants:
+  - name: "no_diff"
+    context:
+      no_diff: true
+```
+
+The layout can be configured either at the endpoint level or in individual variants, but not both simultaneously in the same endpoint.
 
 ---
 
