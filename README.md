@@ -6,14 +6,6 @@
 
 ---
 
-## 🎥 Demo
-
-> ![synthmerge-demo](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8.webm)
-> ![synthmerge-demo with ripgrep-edit](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-ripgrep-edit.webm)
-> ![synthmerge-demo with vim](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-vim.webm)
-
----
-
 ## 🌟 Core Principles
 
 1. **Specialized AI Layer**  
@@ -97,6 +89,28 @@
    - You review in your editor
 
 > ✅ Works also for git rebase, revert and merge conflict resolutions.
+
+---
+
+## 🚀 Usage
+
+```bash
+# Ensure Git is configured for diff3 conflict style
+git config merge.conflictStyle diff3
+
+# Attempt cherry-pick (will leave conflicts unresolved)
+git cherry-pick -x <commit>
+
+# Resolve conflicts with AI
+synthmerge
+
+# Review synthmerge resolved conflicts in each unmerged file ...
+git diff --name-only --diff-filter=U
+
+# ... or linearized in a single buffer to edit with ripgrep-edit
+rg-edit -E vim -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
+rg-edit -E emacsclient -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
+```
 
 ---
 
@@ -248,28 +262,6 @@ endpoints:
 
 ---
 
-## 🚀 Usage
-
-```bash
-# Ensure Git is configured for diff3 conflict style
-git config merge.conflictStyle diff3
-
-# Attempt cherry-pick (will leave conflicts unresolved)
-git cherry-pick -x <commit>
-
-# Resolve conflicts with AI
-synthmerge
-
-# Review synthmerge resolved conflicts in each unmerged file ...
-git diff --name-only --diff-filter=U
-
-# ... or linearized in a single buffer to edit with ripgrep-edit
-rg-edit -E vim -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
-rg-edit -E emacsclient -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
-```
-
----
-
 ## 🌐 Supported AI Endpoints
 
 | Endpoint Type | Example Configuration | Notes |
@@ -283,7 +275,7 @@ rg-edit -E emacsclient -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
 
 ---
 
-## 📊 Context Layout Configuration
+## ⚙️ Context Layout Configuration
 
 The `context: layout:` configuration allows fine-grained control over how information is structured in a LLM request.
 
@@ -319,6 +311,51 @@ variants:
 ```
 
 The layout can be configured either at the endpoint level or in individual variants, but not both simultaneously in the same endpoint.
+
+---
+
+## 🛠 Installation
+
+### Fedora
+
+A Fedora Copr package is available:
+
+1. **Install Synthmerge**:
+
+   ```bash
+   sudo dnf copr enable vittyvk/synthmerge
+   sudo dnf install synthmerge
+   ```
+
+2. **Configuration**:
+   ```bash
+   cp -a /usr/share/synthmerge/synthmerge.yaml ~/.config/
+   $EDITOR ~/.config/synthmerge.yaml
+   ```
+
+### From source code
+
+1. **Install Synthmerge**:
+   ```bash
+   git clone https://gitlab.com/aarcange/synthmerge.git
+   cd synthmerge
+   cargo build --release
+   sudo cp target/release/synthmerge /usr/local/bin/
+   ```
+
+2. **Configuration**:
+   ```bash
+   cp synthmerge.yaml ~/.config/
+   $EDITOR ~/.config/synthmerge.yaml
+   ```
+
+---
+
+## 🎥 Demo
+
+> ![synthmerge-demo](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8.webm)
+> ![synthmerge-demo with ripgrep-edit](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-ripgrep-edit.webm)
+> ![synthmerge-demo with vim](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-vim.webm)
 
 ---
 
@@ -491,40 +528,24 @@ Model: Qwen3-Coder-30B-A3B-Instruct (default#2) # perplexity beam #2
 
 ---
 
-## 🛠 Installation
+## 📊 Benchmark Aggregate Accuracy
 
-### Fedora
+**Aggregate accuracy** represents the combined performance when multiple models/variants/beams are used in parallel: a conflict is considered successfully resolved if *at least one* model/variant/beam produces a correct solution.
 
-A Fedora Copr package is available:
-
-1. **Install Synthmerge**:
-
-   ```bash
-   sudo dnf copr enable vittyvk/synthmerge
-   sudo dnf install synthmerge
-   ```
-
-2. **Configuration**:
-   ```bash
-   cp -a /usr/share/synthmerge/synthmerge.yaml ~/.config/
-   $EDITOR ~/.config/synthmerge.yaml
-   ```
-
-### From source code
-
-1. **Install Synthmerge**:
-   ```bash
-   git clone https://gitlab.com/aarcange/synthmerge.git
-   cd synthmerge
-   cargo build --release
-   sudo cp target/release/synthmerge /usr/local/bin/
-   ```
-
-2. **Configuration**:
-   ```bash
-   cp synthmerge.yaml ~/.config/
-   $EDITOR ~/.config/synthmerge.yaml
-   ```
+| Configuration | Accuracy | Accuracy (aligned) | Accuracy (stripped) |
+|---------------|----------|--------------------|---------------------|
+| `Qwen3-Coder-30B` (default) | 49.69% | 54.21% | 56.78% |
+| `Qwen3-Coder-30B` (no_diff) | 46.94% | 51.02% | 53.76% |
+| **Aggregate: `Qwen3-Coder-30B` (default + no_diff)** | **55.80%** | **60.50%** | **63.33%** |
+| **(Perplexity) beams added to `Qwen3-Coder-30B`** | **63.24%** | **69.18%** | **71.83%** |
+| `Claude Sonnet 4.0` (default) | 66.70% | 70.42% | 73.34% |
+| **`Qwen3-Coder-30B` + `Claude Sonnet 4.0`** | **75.02%** | **78.39%** | **80.96%** |
+| `Gemini 2.5 Flash` (none) | 49.60% | 60.41% | 63.42% |
+| `Gemini 2.5 Pro` (low) | 52.44% | 56.95% | 59.70% |
+| **`Qwen3-Coder-30B + beams` + `Claude Sonnet 4.0` + `Gemini 2.5 Flash` + `Gemini 2.5 Pro`** | **79.98%** | **82.82%** | **84.68%** |
+| `Patchpal AI` (Beam 0) | 64.57% | 68.47% | 71.12% |
+| **Aggregate: Patchpal AI (3 beams)** | **78.39%** | **81.05%** | **82.46%** |
+| ✅ **All models + all variants + all beams** | **84.85%** | **87.51%** | **88.66%** |
 
 ---
 
